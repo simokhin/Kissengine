@@ -56,15 +56,15 @@ const (
 	Rank8
 )
 
-func IndexToFileRank(index int) (file, rank int) {
+func SquareIndexToFileRank(index int) (file, rank int) {
 	file = index & 7
 	rank = index >> 4
 	return file, rank
 }
 
-func FileRankToIndex(file, rank int) (index int) {
-	index = rank*16 + file
-	return index
+func FileRankToSquareIndex(file, rank int) (squareIndex int) {
+	squareIndex = rank*16 + file
+	return squareIndex
 }
 
 func FileRankToNotation(file, rank int) string {
@@ -76,7 +76,7 @@ func FileRankToNotation(file, rank int) string {
 	return squareNotation
 }
 
-func NotationToFileRank(squareNotation string) (file, rank int) {
+func SquareNotationToFileRank(squareNotation string) (file, rank int) {
 	file = int(squareNotation[0] - 'a')
 	rank = int(squareNotation[1] - '1')
 
