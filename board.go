@@ -2,12 +2,11 @@ package main
 
 // BoardState representation
 type BoardState struct {
-	squares [128]int8
-	side    Side
+	squares    [128]int8
+	sideToMove SideToMove
 }
 
-// Side to move
-type Side int
+type SideToMove int
 
 // Pieces
 const (
@@ -28,7 +27,7 @@ const (
 
 // Side to move
 const (
-	WhiteToMove Side = iota
+	WhiteToMove SideToMove = iota
 	BlackToMove
 )
 
