@@ -170,3 +170,110 @@ func TestGenerateKnightMoves(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateSlidingPieceMoves(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputFEN         string
+		inputFrom        string
+		inputPiece       Piece
+		expectedMovesLen int
+		expectedMoves    []struct {
+			to            string
+			flag          Flag
+			capturedPiece Piece
+		}
+	}{
+		{
+			"the bishop is on an open board",
+			"8/8/8/8/3B4/8/8/8 w - - 0 1",
+			"d4",
+			Bishop,
+			13,
+			nil,
+		},
+		{
+			"the rook is on an open board",
+			"8/8/8/8/3R4/8/8/8 w - - 0 1",
+			"d4",
+			Rook,
+			14,
+			nil,
+		},
+		{
+			"the queen is on an open board",
+			"8/8/8/8/3Q4/8/8/8 w - - 0 1",
+			"d4",
+			Queen,
+			27,
+			nil,
+		},
+		{
+			"the rook is blocked by its own piece along a file",
+			"8/8/8/8/P7/8/8/R7 w - - 0 1",
+			"a1",
+			Rook,
+			9,
+			nil,
+		},
+		{
+			"the rook can capture along a file and stops there",
+			"8/8/8/8/p7/8/8/R7 w - - 0 1",
+			"a1",
+			Rook,
+			10,
+			[]struct {
+				to            string
+				flag          Flag
+				capturedPiece Piece
+			}{
+				{"a4", Capture, Pawn | Black},
+			},
+		},
+		{
+			"the bishop slides several squares and stops after a capture",
+			"8/8/8/8/3n4/8/8/B7 w - - 0 1",
+			"a1",
+			Bishop,
+			3,
+			[]struct {
+				to            string
+				flag          Flag
+				capturedPiece Piece
+			}{
+				{"d4", Capture, Knight | Black},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
+
+			moves := GenerateSlidingPieceMoves(from, board, tt.inputPiece)
+			if len(moves) != tt.expectedMovesLen {
+				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
+			}
+
+			for _, expected := range tt.expectedMoves {
+				expectedFile, expectedRank := SquareNotationToFileRank(expected.to)
+				expectedTo := FileRankToSquareIndex(expectedFile, expectedRank)
+
+				move, found := findMoveTo(moves, expectedTo)
+				if !found {
+					t.Errorf("expected a move to %s, but none was found", expected.to)
+					continue
+				}
+
+				if move.Flag() != expected.flag {
+					t.Errorf("move to %s: want flag %d, got %d", expected.to, expected.flag, move.Flag())
+				}
+
+				if move.CapturedPiece() != expected.capturedPiece {
+					t.Errorf("move to %s: want captured piece %d, got %d", expected.to, expected.capturedPiece, move.CapturedPiece())
+				}
+			}
+		})
+	}
+}
