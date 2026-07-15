@@ -277,3 +277,117 @@ func TestGenerateSlidingPieceMoves(t *testing.T) {
 		})
 	}
 }
+
+func TestGeneratePawnMoves(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputFEN         string
+		inputFrom        string
+		expectedMovesLen int
+		expectedMoves    []struct {
+			to            string
+			flag          Flag
+			capturedPiece Piece
+		}
+	}{
+		{
+			"white pawn single push on an open board",
+			"8/8/8/8/8/4P3/8/8 w - - 0 1",
+			"e3",
+			1,
+			nil,
+		},
+		{
+			"white pawn double push from the starting rank",
+			"8/8/8/8/8/8/4P3/8 w - - 0 1",
+			"e2",
+			2,
+			nil,
+		},
+		{
+			"white pawn is blocked and cannot push or double push",
+			"8/8/8/8/8/4p3/4P3/8 w - - 0 1",
+			"e2",
+			0,
+			nil,
+		},
+		{
+			"white pawn can capture diagonally",
+			"8/8/8/3n4/4P3/8/8/8 w - - 0 1",
+			"e4",
+			2,
+			[]struct {
+				to            string
+				flag          Flag
+				capturedPiece Piece
+			}{
+				{"d5", Capture, Knight | Black},
+			},
+		},
+		{
+			"white pawn promotes by pushing and by capturing",
+			"3n4/4P3/8/8/8/8/8/8 w - - 0 1",
+			"e7",
+			8,
+			[]struct {
+				to            string
+				flag          Flag
+				capturedPiece Piece
+			}{
+				{"e8", QuietMove, Empty},
+				{"d8", Capture, Knight | Black},
+			},
+		},
+		{
+			"white pawn can capture en passant",
+			"8/8/8/3pP3/8/8/8/8 w - d6 0 1",
+			"e5",
+			2,
+			[]struct {
+				to            string
+				flag          Flag
+				capturedPiece Piece
+			}{
+				{"d6", EnPassantCapture, Pawn | Black},
+			},
+		},
+		{
+			"black pawn single and double push from the starting rank",
+			"8/4p3/8/8/8/8/8/8 b - - 0 1",
+			"e7",
+			2,
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
+
+			moves := GeneratePawnMoves(from, board)
+			if len(moves) != tt.expectedMovesLen {
+				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
+			}
+
+			for _, expected := range tt.expectedMoves {
+				expectedFile, expectedRank := SquareNotationToFileRank(expected.to)
+				expectedTo := FileRankToSquareIndex(expectedFile, expectedRank)
+
+				move, found := findMoveTo(moves, expectedTo)
+				if !found {
+					t.Errorf("expected a move to %s, but none was found", expected.to)
+					continue
+				}
+
+				if move.Flag() != expected.flag {
+					t.Errorf("move to %s: want flag %d, got %d", expected.to, expected.flag, move.Flag())
+				}
+
+				if move.CapturedPiece() != expected.capturedPiece {
+					t.Errorf("move to %s: want captured piece %d, got %d", expected.to, expected.capturedPiece, move.CapturedPiece())
+				}
+			}
+		})
+	}
+}
