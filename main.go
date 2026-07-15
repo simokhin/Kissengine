@@ -5,5 +5,5 @@ func main() {
 
 	from := FileRankToSquareIndex(SquareNotationToFileRank("h5"))
 
-	GenerateKingMoves(from, board)
+	GenerateJumpingPieceMoves(from, board, King)
 }

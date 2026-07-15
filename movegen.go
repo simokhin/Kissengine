@@ -1,31 +1,38 @@
 package main
 
 var KingOffsets = [8]Square{-1, +1, -15, +15, -16, +16, -17, +17}
+var KnightOffsets = [8]Square{-14, +14, -18, +18, -31, +31, -33, +33}
 
-func GenerateKingMoves(from Square, board BoardState) []Move {
-	offsets := KingOffsets
+func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Move {
+	var offsets []Square
+	switch piece {
+	case King:
+		offsets = KingOffsets[:]
+	case Knight:
+		offsets = KnightOffsets[:]
+	}
 
 	moves := []Move{}
 
-	kingsColor := board.squares[from].Color()
+	pieceColor := board.squares[from].Color()
 
 	for i := range offsets {
-		candidate := from + offsets[i]
+		candidateSquare := from + offsets[i]
 
-		if candidate&0x88 != 0 {
+		if candidateSquare&0x88 != 0 {
 			continue
 		}
 
-		piece := board.squares[candidate]
+		targetPiece := board.squares[candidateSquare]
 
-		if piece == Empty {
-			newMove := NewMove(from, candidate, 0, QuietMove, 0)
+		if targetPiece == Empty {
+			newMove := NewMove(from, candidateSquare, 0, QuietMove, 0)
 			moves = append(moves, newMove)
 		} else {
-			targetColor := piece.Color()
+			targetColor := targetPiece.Color()
 
-			if targetColor != kingsColor {
-				newMove := NewMove(from, candidate, 0, Capture, piece)
+			if targetColor != pieceColor {
+				newMove := NewMove(from, candidateSquare, 0, Capture, targetPiece)
 				moves = append(moves, newMove)
 			} else {
 				continue
@@ -34,4 +41,6 @@ func GenerateKingMoves(from Square, board BoardState) []Move {
 	}
 
 	return moves
+
 }
+
