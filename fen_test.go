@@ -5,7 +5,7 @@ import "testing"
 func TestParseFEN(t *testing.T) {
 	expectedPieces := []struct {
 		notation string
-		piece    int8
+		piece    Piece
 	}{
 		{"a1", Rook | White},
 		{"b1", Knight | White},
@@ -50,8 +50,8 @@ func TestParseFEN(t *testing.T) {
 		file, rank := SquareNotationToFileRank(expected.notation)
 		squareIndex := FileRankToSquareIndex(file, rank)
 
-		if board.squares[squareIndex] != expected.piece {
-			t.Errorf("Expected piece to be %d but was %d", expected.piece, board.squares[squareIndex])
+		if board.squares[squareIndex] != Piece(expected.piece) {
+			t.Errorf("Expected piece %d; got %d", expected.piece, board.squares[squareIndex])
 		}
 	}
 

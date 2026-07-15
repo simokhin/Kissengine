@@ -14,7 +14,7 @@ func ParseFEN(fen string) BoardState {
 
 	position := strings.Split(fenFields[0], "/")
 
-	for i := 0; i < len(position); i++ {
+	for i := range position {
 		currentRank := Rank8 - i
 		var currentFile int
 
@@ -53,9 +53,10 @@ func ParseFEN(fen string) BoardState {
 		}
 	}
 
-	if fenFields[1] == "w" {
+	switch fenFields[1] {
+	case "w":
 		board.sideToMove = WhiteToMove
-	} else if fenFields[1] == "b" {
+	case "b":
 		board.sideToMove = BlackToMove
 	}
 

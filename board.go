@@ -1,7 +1,7 @@
 package main
 
 type BoardState struct {
-	squares             [128]int8
+	squares             [128]Piece
 	sideToMove          SideToMove
 	castleRights        CastleRights
 	enPassantSquare     Square
@@ -15,8 +15,11 @@ type Square int
 
 type CastleRights int
 
+type Piece int8
+
 const NoSquare = -1
 
+// Castle rights
 const (
 	WhiteKingSide CastleRights = 1 << iota
 	WhiteQueenSide
@@ -26,7 +29,7 @@ const (
 
 // Pieces
 const (
-	Empty = iota
+	Empty Piece = iota
 	Pawn
 	Knight
 	Bishop
