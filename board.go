@@ -1,12 +1,28 @@
 package main
 
-// BoardState representation
 type BoardState struct {
-	squares    [128]int8
-	sideToMove SideToMove
+	squares             [128]int8
+	sideToMove          SideToMove
+	castleRights        CastleRights
+	enPassantSquare     Square
+	fiftyMovesRuleCount int
+	movesCount          int
 }
 
 type SideToMove int
+
+type Square int
+
+type CastleRights int
+
+const NoSquare = -1
+
+const (
+	WhiteKingSide CastleRights = 1 << iota
+	WhiteQueenSide
+	BlackKingSide
+	BlackQueenSide
+)
 
 // Pieces
 const (
@@ -55,14 +71,14 @@ const (
 	Rank8
 )
 
-func SquareIndexToFileRank(index int) (file, rank int) {
-	file = index & 7
-	rank = index >> 4
+func SquareIndexToFileRank(index Square) (file, rank int) {
+	file = int(index & 7)
+	rank = int(index >> 4)
 	return file, rank
 }
 
-func FileRankToSquareIndex(file, rank int) (squareIndex int) {
-	squareIndex = rank*16 + file
+func FileRankToSquareIndex(file, rank int) (squareIndex Square) {
+	squareIndex = Square(rank*16 + file)
 	return squareIndex
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -57,6 +58,33 @@ func ParseFEN(fen string) BoardState {
 	} else if fenFields[1] == "b" {
 		board.sideToMove = BlackToMove
 	}
+
+	for i := 0; i < len(fenFields[2]); i++ {
+		switch fenFields[2][i] {
+		case 'K':
+			board.castleRights |= WhiteKingSide
+		case 'Q':
+			board.castleRights |= WhiteQueenSide
+		case 'k':
+			board.castleRights |= BlackKingSide
+		case 'q':
+			board.castleRights |= BlackQueenSide
+		default:
+			continue
+		}
+	}
+
+	if fenFields[3] == "-" {
+		board.enPassantSquare = NoSquare
+	} else {
+		board.enPassantSquare = FileRankToSquareIndex(SquareNotationToFileRank(fenFields[3]))
+	}
+
+	fiftyMovesRuleCount, _ := strconv.Atoi(fenFields[4])
+	board.fiftyMovesRuleCount = fiftyMovesRuleCount
+
+	moves, _ := strconv.Atoi(fenFields[5])
+	board.movesCount = moves
 
 	return board
 }

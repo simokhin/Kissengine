@@ -7,7 +7,7 @@ func TestFileRankToSquareIndex(t *testing.T) {
 		name                string
 		inputFile           int
 		inputRank           int
-		expectedSquareIndex int
+		expectedSquareIndex Square
 	}{
 		{"a1", FileA, Rank1, 0},
 		{"h8", FileH, Rank8, 119},
@@ -25,7 +25,7 @@ func TestFileRankToSquareIndex(t *testing.T) {
 func TestSquareIndexToFileRank(t *testing.T) {
 	tests := []struct {
 		name         string
-		input        int
+		input        Square
 		expectedFile int
 		expectedRank int
 	}{
