@@ -2,6 +2,7 @@ package main
 
 import "testing"
 
+// TestMoveRoundTrip creates a new move and then extracts information from the created move
 func TestMoveRoundTrip(t *testing.T) {
 	from := FileRankToSquareIndex(SquareNotationToFileRank("e7"))
 	to := FileRankToSquareIndex(SquareNotationToFileRank("e8"))

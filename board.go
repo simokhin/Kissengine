@@ -15,8 +15,6 @@ type Square int
 
 type CastleRights int
 
-type Piece int8
-
 const NoSquare = -1
 
 // Castle rights
@@ -25,23 +23,6 @@ const (
 	WhiteQueenSide
 	BlackKingSide
 	BlackQueenSide
-)
-
-// Pieces
-const (
-	Empty Piece = iota
-	Pawn
-	Knight
-	Bishop
-	Rook
-	Queen
-	King
-)
-
-// Colors
-const (
-	White = 0
-	Black = 8
 )
 
 // Side to move
