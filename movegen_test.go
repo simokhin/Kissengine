@@ -11,6 +11,92 @@ func findMoveTo(moves []Move, to Square) (Move, bool) {
 	return 0, false
 }
 
+func findMoveToWithFlag(moves []Move, to Square, flag Flag) (Move, bool) {
+	for _, m := range moves {
+		if m.To() == to && m.Flag() == flag {
+			return m, true
+		}
+	}
+	return 0, false
+}
+
+func TestGenerateAllPseudoLegalMoves(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputFEN         string
+		expectedMovesLen int
+		expectedMoves    []struct {
+			to   string
+			flag Flag
+		}
+	}{
+		{
+			"starting position generates all 20 opening moves for white",
+			StartFen,
+			20,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"e4", DoublePawnMove},
+				{"c3", QuietMove},
+			},
+		},
+		{
+			"starting position generates all 20 opening moves for black",
+			"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+			20,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"e5", DoublePawnMove},
+				{"c6", QuietMove},
+			},
+		},
+		{
+			"only pieces belonging to the side to move generate moves",
+			"8/8/8/8/8/8/8/N6n w - - 0 1",
+			2,
+			nil,
+		},
+		{
+			"combines rook, king, and castling moves for a mixed position",
+			"8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+			26,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"g1", KingCastle},
+				{"c1", QueenCastle},
+				{"a8", QuietMove},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+
+			moves := GenerateAllPseudoLegalMoves(board)
+			if len(moves) != tt.expectedMovesLen {
+				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
+			}
+
+			for _, expected := range tt.expectedMoves {
+				expectedFile, expectedRank := SquareNotationToFileRank(expected.to)
+				expectedTo := FileRankToSquareIndex(expectedFile, expectedRank)
+
+				_, found := findMoveToWithFlag(moves, expectedTo, expected.flag)
+				if !found {
+					t.Errorf("expected a move to %s with flag %d, but none was found", expected.to, expected.flag)
+				}
+			}
+		})
+	}
+}
+
 func TestGenerateKingMoves(t *testing.T) {
 	tests := []struct {
 		name             string

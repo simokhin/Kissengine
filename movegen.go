@@ -15,6 +15,54 @@ var piecesToPromote = [4]Piece{
 	Bishop, Knight, Rook, Queen,
 }
 
+func GenerateAllPseudoLegalMoves(board BoardState) []Move {
+	var moves []Move
+	var sideColor Piece
+
+	switch board.sideToMove {
+	case WhiteToMove:
+		sideColor = White
+	case BlackToMove:
+		sideColor = Black
+	}
+
+	for i := range board.squares {
+		square := Square(i)
+
+		if !square.IsOnBoard() {
+			continue
+		} else {
+			piece := board.squares[i]
+			switch piece {
+			case sideColor | King:
+				kingMoves := GenerateJumpingPieceMoves(square, board, sideColor|King)
+				moves = append(moves, kingMoves...)
+				castlingMoves := GenerateCastlingMoves(board)
+				moves = append(moves, castlingMoves...)
+			case sideColor | Knight:
+				knightMoves := GenerateJumpingPieceMoves(square, board, sideColor|Knight)
+				moves = append(moves, knightMoves...)
+			case sideColor | Bishop:
+				bishopMoves := GenerateSlidingPieceMoves(square, board, sideColor|Bishop)
+				moves = append(moves, bishopMoves...)
+			case sideColor | Rook:
+				rookMoves := GenerateSlidingPieceMoves(square, board, sideColor|Rook)
+				moves = append(moves, rookMoves...)
+			case sideColor | Queen:
+				queenMoves := GenerateSlidingPieceMoves(square, board, sideColor|Queen)
+				moves = append(moves, queenMoves...)
+			case sideColor | Pawn:
+				pawnMoves := GeneratePawnMoves(square, board)
+				moves = append(moves, pawnMoves...)
+			case Empty:
+				break
+			}
+		}
+	}
+
+	return moves
+}
+
 func GeneratePawnMoves(from Square, board BoardState) []Move {
 	var offsets []Square
 	var moves []Move
@@ -117,7 +165,7 @@ func GeneratePawnMoves(from Square, board BoardState) []Move {
 func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Move {
 	var offsets []Square
 
-	switch piece {
+	switch piece.Type() {
 	case Bishop:
 		offsets = BishopOffsets[:]
 	case Rook:
@@ -220,7 +268,7 @@ func GenerateCastlingMoves(board BoardState) []Move {
 func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Move {
 	var offsets []Square
 
-	switch piece {
+	switch piece.Type() {
 	case King:
 		offsets = KingOffsets[:]
 	case Knight:
