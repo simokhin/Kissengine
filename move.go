@@ -48,6 +48,7 @@ func MakeMove(board BoardState, move Move) BoardState {
 	newBoard.squares[move.From()] = Empty
 
 	piece := board.squares[move.From()]
+	sideColor := piece.Color()
 
 	if board.sideToMove == WhiteToMove {
 		newBoard.sideToMove = BlackToMove
@@ -65,7 +66,50 @@ func MakeMove(board BoardState, move Move) BoardState {
 		toFile, _ := SquareIndexToFileRank(move.To())
 		_, fromRank := SquareIndexToFileRank(move.From())
 		newBoard.squares[FileRankToSquareIndex(toFile, fromRank)] = Empty
+	}
+
+	if move.Flag() == KingCastle {
+		switch sideColor {
+		case White:
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("h1"))] = Empty
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("f1"))] = White | Rook
+		case Black:
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("h8"))] = Empty
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("f8"))] = Black | Rook
+		}
+	} else if move.Flag() == QueenCastle {
+		switch sideColor {
+		case White:
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("a1"))] = Empty
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("d1"))] = White | Rook
+		case Black:
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("a8"))] = Empty
+			newBoard.squares[FileRankToSquareIndex(SquareNotationToFileRank("d8"))] = Black | Rook
+		}
+	}
+
+	newBoard.castleRights &= castleRightsMask[move.From()]
+	newBoard.castleRights &= castleRightsMask[move.To()]
+
+	if move.Flag() == DoublePawnMove {
+		switch sideColor {
+		case White:
+			newBoard.enPassantSquare = move.To() - 16
+		case Black:
+			newBoard.enPassantSquare = move.To() + 16
+		}
+	} else {
 		newBoard.enPassantSquare = NoSquare
+	}
+
+	if piece.Type() != Pawn && move.CapturedPiece() == Empty {
+		newBoard.fiftyMovesRuleCount += 1
+	} else {
+		newBoard.fiftyMovesRuleCount = 0
+	}
+
+	if sideColor == Black {
+		newBoard.movesCount += 1
 	}
 
 	return newBoard
