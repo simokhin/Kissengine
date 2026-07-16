@@ -1,4 +1,4 @@
-package main
+package engine
 
 var castleRightsMask [128]CastleRights
 

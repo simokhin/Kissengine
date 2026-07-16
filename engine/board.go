@@ -1,4 +1,4 @@
-package main
+package engine
 
 type BoardState struct {
 	squares             [128]Piece

@@ -1,4 +1,4 @@
-package main
+package engine
 
 import "slices"
 
@@ -13,6 +13,42 @@ var BlackPawnAttackOffsets = [2]Square{+15, +17}
 
 var piecesToPromote = [4]Piece{
 	Bishop, Knight, Rook, Queen,
+}
+
+func GenerateLegalMoves(board BoardState) []Move {
+	pseudoLegalMoves := GenerateAllPseudoLegalMoves(board)
+	var legalMoves []Move
+
+	for i := range pseudoLegalMoves {
+		newBoard := MakeMove(board, pseudoLegalMoves[i])
+
+		switch board.sideToMove {
+		case WhiteToMove:
+			for j := range newBoard.squares {
+				piece := newBoard.squares[j]
+				if piece == White|King {
+					if newBoard.IsSquareAttacked(Square(j), Black) {
+						continue
+					} else {
+						legalMoves = append(legalMoves, pseudoLegalMoves[i])
+					}
+				}
+			}
+		case BlackToMove:
+			for j := range newBoard.squares {
+				piece := newBoard.squares[j]
+				if piece == Black|King {
+					if newBoard.IsSquareAttacked(Square(j), White) {
+						continue
+					} else {
+						legalMoves = append(legalMoves, pseudoLegalMoves[i])
+					}
+				}
+			}
+		}
+	}
+
+	return legalMoves
 }
 
 func GenerateAllPseudoLegalMoves(board BoardState) []Move {

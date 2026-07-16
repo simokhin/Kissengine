@@ -1,4 +1,4 @@
-package main
+package engine
 
 import "testing"
 
@@ -18,6 +18,122 @@ func findMoveToWithFlag(moves []Move, to Square, flag Flag) (Move, bool) {
 		}
 	}
 	return 0, false
+}
+
+func findMove(moves []Move, from, to Square, flag Flag) (Move, bool) {
+	for _, m := range moves {
+		if m.From() == from && m.To() == to && m.Flag() == flag {
+			return m, true
+		}
+	}
+	return 0, false
+}
+
+func TestGenerateLegalMoves(t *testing.T) {
+	type moveExpectation struct {
+		from, to string
+		flag     Flag
+	}
+
+	tests := []struct {
+		name             string
+		inputFEN         string
+		expectedMovesLen int
+		mustInclude      []moveExpectation
+		mustExclude      []moveExpectation
+	}{
+		{
+			"starting position: no king is in danger, all pseudo-legal moves stay legal",
+			StartFen,
+			20,
+			[]moveExpectation{
+				{"e2", "e4", DoublePawnMove},
+				{"b1", "c3", QuietMove},
+			},
+			nil,
+		},
+		{
+			"king cannot move onto or through a square attacked by an enemy rook",
+			"8/8/8/8/8/8/5r2/4K3 w - - 0 1",
+			2,
+			[]moveExpectation{
+				{"e1", "d1", QuietMove},
+				{"e1", "f2", Capture},
+			},
+			[]moveExpectation{
+				{"e1", "e2", QuietMove},
+				{"e1", "f1", QuietMove},
+				{"e1", "d2", QuietMove},
+			},
+		},
+		{
+			"when the king is in check, only moves that escape the check are legal",
+			"4r3/8/8/8/8/8/8/R3K3 w - - 0 1",
+			4,
+			[]moveExpectation{
+				{"e1", "d1", QuietMove},
+				{"e1", "f1", QuietMove},
+				{"e1", "d2", QuietMove},
+				{"e1", "f2", QuietMove},
+			},
+			[]moveExpectation{
+				{"e1", "e2", QuietMove},
+				{"a1", "d1", QuietMove},
+				{"a1", "b1", QuietMove},
+				{"a1", "a4", QuietMove},
+			},
+		},
+		{
+			"blocking the check is legal, but unrelated moves of the same piece are not",
+			"4r3/8/8/8/8/8/1B6/4K3 w - - 0 1",
+			5,
+			[]moveExpectation{
+				{"e1", "d1", QuietMove},
+				{"e1", "f1", QuietMove},
+				{"e1", "d2", QuietMove},
+				{"e1", "f2", QuietMove},
+				{"b2", "e5", QuietMove},
+			},
+			[]moveExpectation{
+				{"e1", "e2", QuietMove},
+				{"b2", "c1", QuietMove},
+				{"b2", "h8", QuietMove},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+
+			moves := GenerateLegalMoves(board)
+			if len(moves) != tt.expectedMovesLen {
+				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
+			}
+
+			for _, expected := range tt.mustInclude {
+				fromFile, fromRank := SquareNotationToFileRank(expected.from)
+				from := FileRankToSquareIndex(fromFile, fromRank)
+				toFile, toRank := SquareNotationToFileRank(expected.to)
+				to := FileRankToSquareIndex(toFile, toRank)
+
+				if _, found := findMove(moves, from, to, expected.flag); !found {
+					t.Errorf("expected a legal move %s->%s with flag %d, but none was found", expected.from, expected.to, expected.flag)
+				}
+			}
+
+			for _, unexpected := range tt.mustExclude {
+				fromFile, fromRank := SquareNotationToFileRank(unexpected.from)
+				from := FileRankToSquareIndex(fromFile, fromRank)
+				toFile, toRank := SquareNotationToFileRank(unexpected.to)
+				to := FileRankToSquareIndex(toFile, toRank)
+
+				if _, found := findMove(moves, from, to, unexpected.flag); found {
+					t.Errorf("did not expect a legal move %s->%s with flag %d, but it was found", unexpected.from, unexpected.to, unexpected.flag)
+				}
+			}
+		})
+	}
 }
 
 func TestGenerateAllPseudoLegalMoves(t *testing.T) {
