@@ -25,8 +25,6 @@ const (
 	BlackQueenSide
 )
 
-// Side to move
-
 // SideToMove
 const (
 	WhiteToMove SideToMove = iota
@@ -56,6 +54,14 @@ const (
 	Rank7
 	Rank8
 )
+
+func (b BoardState) PieceAt(s Square) Piece {
+	return b.squares[s]
+}
+
+func (b BoardState) SideToMove() SideToMove {
+	return b.sideToMove
+}
 
 func SquareIndexToFileRank(index Square) (file, rank int) {
 	file = int(index & 7)
