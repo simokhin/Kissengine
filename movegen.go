@@ -8,6 +8,8 @@ var BishopOffsets = [4]Square{+15, -15, +17, -17}
 var RookOffsets = [4]Square{+1, -1, +16, -16}
 var WhitePawnOffsets = [4]Square{+16, +32, +15, +17}
 var BlackPawnOffsets = [4]Square{-16, -32, -15, -17}
+var WhitePawnAttackOffsets = [2]Square{-15, -17}
+var BlackPawnAttackOffsets = [2]Square{+15, +17}
 
 var piecesToPromote = [4]Piece{
 	Bishop, Knight, Rook, Queen,
@@ -35,7 +37,7 @@ func GeneratePawnMoves(from Square, board BoardState) []Move {
 		if i == 0 {
 			candidateSquare := from + offsets[i]
 
-			if candidateSquare&0x88 == 0 {
+			if candidateSquare.IsOnBoard() {
 				targetPiece := board.squares[candidateSquare]
 				if targetPiece != Empty {
 					continue
@@ -75,7 +77,7 @@ func GeneratePawnMoves(from Square, board BoardState) []Move {
 		} else if i == 2 || i == 3 {
 			candidateSquare := from + offsets[i]
 
-			if candidateSquare&0x88 != 0 {
+			if !candidateSquare.IsOnBoard() {
 				continue
 			}
 
@@ -132,23 +134,23 @@ func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 		for {
 			candidateSquare += offsets[i]
 
-			if candidateSquare&0x88 == 0 {
-				targetPiece := board.squares[candidateSquare]
-
-				if targetPiece == Empty {
-					newMove := NewMove(from, candidateSquare, 0, QuietMove, 0)
-					moves = append(moves, newMove)
-				} else {
-					if targetPiece.Color() != pieceColor {
-						newMove := NewMove(from, candidateSquare, 0, Capture, targetPiece)
-						moves = append(moves, newMove)
-						break
-					} else {
-						break
-					}
-				}
-			} else {
+			if !candidateSquare.IsOnBoard() {
 				break
+			}
+
+			targetPiece := board.squares[candidateSquare]
+
+			if targetPiece == Empty {
+				newMove := NewMove(from, candidateSquare, 0, QuietMove, 0)
+				moves = append(moves, newMove)
+			} else {
+				if targetPiece.Color() != pieceColor {
+					newMove := NewMove(from, candidateSquare, 0, Capture, targetPiece)
+					moves = append(moves, newMove)
+					break
+				} else {
+					break
+				}
 			}
 		}
 	}
@@ -173,7 +175,7 @@ func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	for i := range offsets {
 		candidateSquare := from + offsets[i]
 
-		if candidateSquare&0x88 != 0 {
+		if !candidateSquare.IsOnBoard() {
 			continue
 		}
 

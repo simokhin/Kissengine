@@ -108,3 +108,104 @@ func TestFileRankNotationRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestIsSquareAttacked(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputFEN         string
+		inputSquare      string
+		inputAttacker    Piece
+		expectedAttacked bool
+	}{
+		{
+			"attacked by an adjacent king",
+			"8/8/8/4K3/8/8/8/8 w - - 0 1",
+			"e4",
+			White,
+			true,
+		},
+		{
+			"attacked by a knight",
+			"8/8/5N2/8/8/8/8/8 w - - 0 1",
+			"e4",
+			White,
+			true,
+		},
+		{
+			"attacked by a bishop sliding several squares",
+			"8/8/8/8/8/8/8/B7 w - - 0 1",
+			"e5",
+			White,
+			true,
+		},
+		{
+			"bishop's attack is blocked by a piece in between",
+			"8/8/8/8/8/2N5/8/B7 w - - 0 1",
+			"e5",
+			White,
+			false,
+		},
+		{
+			"attacked by a rook sliding several squares",
+			"8/8/8/8/8/8/8/R7 w - - 0 1",
+			"a5",
+			White,
+			true,
+		},
+		{
+			"rook's attack is blocked by a piece in between",
+			"8/8/8/8/8/P7/8/R7 w - - 0 1",
+			"a5",
+			White,
+			false,
+		},
+		{
+			"attacked by a queen diagonally",
+			"8/8/8/8/8/8/8/Q7 w - - 0 1",
+			"e5",
+			White,
+			true,
+		},
+		{
+			"a piece of the wrong color does not attack",
+			"8/8/8/8/8/8/8/B7 w - - 0 1",
+			"e5",
+			Black,
+			false,
+		},
+		{
+			"attacked by a white pawn",
+			"8/8/8/8/8/3P4/8/8 w - - 0 1",
+			"e4",
+			White,
+			true,
+		},
+		{
+			"attacked by a black pawn",
+			"8/8/8/3p4/8/8/8/8 w - - 0 1",
+			"e4",
+			Black,
+			true,
+		},
+		{
+			"empty board, square is not attacked",
+			"8/8/8/8/8/8/8/8 w - - 0 1",
+			"e4",
+			White,
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+			file, rank := SquareNotationToFileRank(tt.inputSquare)
+			square := FileRankToSquareIndex(file, rank)
+
+			attacked := board.IsSquareAttacked(square, tt.inputAttacker)
+			if attacked != tt.expectedAttacked {
+				t.Errorf("IsSquareAttacked(%s, %d) = %v; want %v", tt.inputSquare, tt.inputAttacker, attacked, tt.expectedAttacked)
+			}
+		})
+	}
+}

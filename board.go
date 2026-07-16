@@ -26,6 +26,8 @@ const (
 )
 
 // Side to move
+
+// SideToMove
 const (
 	WhiteToMove SideToMove = iota
 	BlackToMove
@@ -80,4 +82,127 @@ func SquareNotationToFileRank(squareNotation string) (file, rank int) {
 	rank = int(squareNotation[1] - '1')
 
 	return file, rank
+}
+
+func (s Square) IsOnBoard() bool {
+	if s&0x88 != 0 {
+		return false
+	}
+	return true
+}
+
+func (b BoardState) IsSquareAttacked(square Square, attackerColor Piece) bool {
+	attackerColor &= Black
+
+	// By King
+	for i := range KingOffsets {
+		candidateSquare := square + KingOffsets[i]
+
+		if !candidateSquare.IsOnBoard() {
+			continue
+		} else {
+			if b.squares[candidateSquare] == attackerColor|King {
+				return true
+			}
+		}
+	}
+
+	// By Knight
+	for i := range KnightOffsets {
+		candidateSquare := square + KnightOffsets[i]
+
+		if !candidateSquare.IsOnBoard() {
+			continue
+		} else {
+			if b.squares[candidateSquare] == attackerColor|Knight {
+				return true
+			}
+		}
+	}
+
+	// By Bishop or Queen
+	for i := range BishopOffsets {
+		candidateSquare := square
+
+		for {
+			candidateSquare += BishopOffsets[i]
+
+			if !candidateSquare.IsOnBoard() {
+				break
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != Empty {
+					pieceColor := piece & Black
+					if pieceColor != attackerColor {
+						break
+					} else {
+						if piece.Type() == Bishop || piece.Type() == Queen {
+							return true
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// By Rook or Queen
+	for i := range RookOffsets {
+		candidateSquare := square
+
+		for {
+			candidateSquare += RookOffsets[i]
+
+			if !candidateSquare.IsOnBoard() {
+				break
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != Empty {
+					pieceColor := piece & Black
+					if pieceColor != attackerColor {
+						break
+					} else {
+						if piece.Type() == Rook || piece.Type() == Queen {
+							return true
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// By Pawn
+	switch attackerColor {
+	case White:
+		for i := range WhitePawnAttackOffsets {
+			candidateSquare := square + WhitePawnAttackOffsets[i]
+			if !candidateSquare.IsOnBoard() {
+				continue
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != attackerColor|Pawn {
+					continue
+				} else {
+					return true
+				}
+			}
+		}
+	case Black:
+		for i := range BlackPawnAttackOffsets {
+			candidateSquare := square + BlackPawnAttackOffsets[i]
+			if !candidateSquare.IsOnBoard() {
+				continue
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != attackerColor|Pawn {
+					continue
+				} else {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
