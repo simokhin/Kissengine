@@ -12,11 +12,13 @@ import (
 )
 
 type Game struct {
-	board       engine.BoardState
-	humanColor  engine.Piece
-	hasSelected bool
-	selected    engine.Square
-	legalMoves  []engine.Move
+	board          engine.BoardState
+	humanColor     engine.Piece
+	hasSelected    bool
+	selected       engine.Square
+	legalMoves     []engine.Move
+	engineThinking bool
+	engineResult   chan engine.Move
 }
 
 const (
@@ -48,7 +50,35 @@ var pieceGlyphs = [15]string{
 	engine.Black | engine.King:   "k",
 }
 
+func moveSound(move engine.Move, boardAfter engine.BoardState) SoundType {
+	if boardAfter.InCheck() {
+		return CheckSound
+	}
+	if move.Flag() == engine.Capture || move.Flag() == engine.EnPassantCapture {
+		return CaptureSound
+	}
+	if move.Flag() == engine.KingCastle || move.Flag() == engine.QueenCastle {
+		return CastleSound
+	}
+	if move.Promotion() != engine.Empty {
+		return PromoteSound
+	}
+	return MoveSound
+}
+
 func (g *Game) Update() error {
+	if g.engineThinking {
+		select {
+		case move := <-g.engineResult:
+			g.board = engine.MakeMove(g.board, move)
+			sound := moveSound(move, g.board)
+			sounds[sound].Rewind()
+			sounds[sound].Play()
+			g.engineThinking = false
+		default:
+			return nil
+		}
+	}
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		file := x / squareSize
@@ -83,9 +113,17 @@ func (g *Game) Update() error {
 			if found {
 				g.board = engine.MakeMove(g.board, move)
 
+				sound := moveSound(move, g.board)
+				sounds[sound].Rewind()
+				sounds[sound].Play()
+
 				if g.board.SideToMove().Color() != g.humanColor {
-					engineMove := engine.FindBestMoveByTime(g.board, time.Duration(moveTime)*time.Millisecond)
-					g.board = engine.MakeMove(g.board, engineMove)
+					g.engineThinking = true
+					g.engineResult = make(chan engine.Move, 1)
+					board := g.board
+					go func() {
+						g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
+					}()
 				}
 			}
 
