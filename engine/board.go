@@ -63,6 +63,10 @@ func (b BoardState) SideToMove() SideToMove {
 	return b.sideToMove
 }
 
+func (b BoardState) FiftyMovesRuleCount() int {
+	return b.fiftyMovesRuleCount
+}
+
 func (s SideToMove) Color() Piece {
 	if s == WhiteToMove {
 		return White

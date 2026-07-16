@@ -23,7 +23,7 @@ const (
 	screenWidth  = squareSize * 8
 	screenHeight = squareSize * 8
 
-	searchDepth = 4
+	searchDepth = 5
 )
 
 var (
