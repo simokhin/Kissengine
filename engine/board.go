@@ -63,6 +63,13 @@ func (b BoardState) SideToMove() SideToMove {
 	return b.sideToMove
 }
 
+func (s SideToMove) Color() Piece {
+	if s == WhiteToMove {
+		return White
+	}
+	return Black
+}
+
 func SquareIndexToFileRank(index Square) (file, rank int) {
 	file = int(index & 7)
 	rank = int(index >> 4)

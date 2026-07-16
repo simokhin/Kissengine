@@ -19,30 +19,22 @@ func GenerateLegalMoves(board BoardState) []Move {
 	pseudoLegalMoves := GenerateAllPseudoLegalMoves(board)
 	var legalMoves []Move
 
+	sideColor := board.sideToMove.Color()
+	var opponentColor Piece
+	if sideColor == White {
+		opponentColor = Black
+	} else {
+		opponentColor = White
+	}
+
 	for i := range pseudoLegalMoves {
 		newBoard := MakeMove(board, pseudoLegalMoves[i])
 
-		switch board.sideToMove {
-		case WhiteToMove:
-			for j := range newBoard.squares {
-				piece := newBoard.squares[j]
-				if piece == White|King {
-					if newBoard.IsSquareAttacked(Square(j), Black) {
-						continue
-					} else {
-						legalMoves = append(legalMoves, pseudoLegalMoves[i])
-					}
-				}
-			}
-		case BlackToMove:
-			for j := range newBoard.squares {
-				piece := newBoard.squares[j]
-				if piece == Black|King {
-					if newBoard.IsSquareAttacked(Square(j), White) {
-						continue
-					} else {
-						legalMoves = append(legalMoves, pseudoLegalMoves[i])
-					}
+		for j := range newBoard.squares {
+			piece := newBoard.squares[j]
+			if piece == sideColor|King {
+				if !newBoard.IsSquareAttacked(Square(j), opponentColor) {
+					legalMoves = append(legalMoves, pseudoLegalMoves[i])
 				}
 			}
 		}
@@ -53,14 +45,7 @@ func GenerateLegalMoves(board BoardState) []Move {
 
 func GenerateAllPseudoLegalMoves(board BoardState) []Move {
 	var moves []Move
-	var sideColor Piece
-
-	switch board.sideToMove {
-	case WhiteToMove:
-		sideColor = White
-	case BlackToMove:
-		sideColor = Black
-	}
+	sideColor := board.sideToMove.Color()
 
 	for i := range board.squares {
 		square := Square(i)
