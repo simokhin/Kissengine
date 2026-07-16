@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	numGames    = 10
-	searchDepth = 4
-	moveCap     = 400
+	numGames   = 10
+	moveTimeMs = 100
+	moveCap    = 400
 )
 
 type Engine struct {
@@ -144,7 +144,7 @@ func playGame(white, black *Engine) (engine.Result, []string) {
 			positionCmd += " moves " + strings.Join(moveHistory, " ")
 		}
 		fmt.Fprintln(mover.stdin, positionCmd)
-		fmt.Fprintf(mover.stdin, "go depth %d\n", searchDepth)
+		fmt.Fprintf(mover.stdin, "go movetime %d\n", moveTimeMs)
 
 		var bestMoveStr string
 		for mover.stdout.Scan() {

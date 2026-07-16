@@ -22,8 +22,10 @@ func Evaluate(board BoardState) Evaluation {
 
 		if piece.Color() == board.SideToMove().Color() {
 			evaluation += pieceValues[piece.Type()]
+			evaluation += pstValue(pstTables[piece.Type()], Square(i), piece.Color())
 		} else {
 			evaluation -= pieceValues[piece.Type()]
+			evaluation -= pstValue(pstTables[piece.Type()], Square(i), piece.Color())
 		}
 	}
 

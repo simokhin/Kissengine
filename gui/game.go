@@ -4,6 +4,7 @@ import (
 	"MyChessEngine/engine"
 	"fmt"
 	"image/color"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -24,6 +25,7 @@ const (
 	screenHeight = squareSize * 8
 
 	searchDepth = 5
+	moveTime    = 500
 )
 
 var (
@@ -82,7 +84,7 @@ func (g *Game) Update() error {
 				g.board = engine.MakeMove(g.board, move)
 
 				if g.board.SideToMove().Color() != g.humanColor {
-					engineMove := engine.FindBestMove(g.board, searchDepth)
+					engineMove := engine.FindBestMoveByTime(g.board, time.Duration(moveTime)*time.Millisecond)
 					g.board = engine.MakeMove(g.board, engineMove)
 				}
 			}

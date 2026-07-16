@@ -1,9 +1,25 @@
 package engine
 
+import "time"
+
 const (
 	Infinity Evaluation = 1_000_000
 	Mate     Evaluation = 100_000
 )
+
+func FindBestMoveByTime(board BoardState, timeLimit time.Duration) Move {
+	deadline := time.Now().Add(timeLimit)
+	var bestMove Move
+
+	for depth := 1; ; depth++ {
+		if time.Now().After(deadline) {
+			break
+		}
+		bestMove = FindBestMove(board, depth)
+	}
+
+	return bestMove
+}
 
 func FindBestMove(board BoardState, depth int) Move {
 	var bestMove Move

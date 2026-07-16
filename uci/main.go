@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -69,6 +70,20 @@ func main() {
 
 				depth, _ := strconv.Atoi(fields[2])
 				bestMove := engine.FindBestMove(board, depth)
+				board = engine.MakeMove(board, bestMove)
+				fmt.Println("bestmove " + notation.MoveToUCI(bestMove))
+			case "movetime":
+				if len(fields) < 3 {
+					continue
+				}
+
+				if len(engine.GenerateLegalMoves(board)) == 0 {
+					fmt.Println("bestmove 0000")
+					continue
+				}
+
+				ms, _ := strconv.Atoi(fields[2])
+				bestMove := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond)
 				board = engine.MakeMove(board, bestMove)
 				fmt.Println("bestmove " + notation.MoveToUCI(bestMove))
 			}
