@@ -14,7 +14,7 @@ func FindBestMove(board BoardState, depth int) Move {
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		moveEvaluation := -NegaMax(newBoard, depth-1)
+		moveEvaluation := -NegaMax(newBoard, depth-1, -Infinity, -best)
 		if moveEvaluation > best {
 			best = moveEvaluation
 			bestMove = move
@@ -24,7 +24,7 @@ func FindBestMove(board BoardState, depth int) Move {
 	return bestMove
 }
 
-func NegaMax(board BoardState, depth int) Evaluation {
+func NegaMax(board BoardState, depth int, alpha, beta Evaluation) Evaluation {
 	if depth == 0 {
 		return Evaluate(board)
 	}
@@ -36,15 +36,18 @@ func NegaMax(board BoardState, depth int) Evaluation {
 		}
 		return 0
 	}
-	best := -Infinity
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score := -NegaMax(newBoard, depth-1)
-		if score > best {
-			best = score
+		score := -NegaMax(newBoard, depth-1, -beta, -alpha)
+
+		if score >= beta {
+			return beta
+		}
+		if score > alpha {
+			alpha = score
 		}
 	}
 
-	return best
+	return alpha
 }
