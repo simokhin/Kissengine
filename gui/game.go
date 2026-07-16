@@ -12,13 +12,15 @@ import (
 )
 
 type Game struct {
-	board          engine.BoardState
-	humanColor     engine.Piece
-	hasSelected    bool
-	selected       engine.Square
-	legalMoves     []engine.Move
-	engineThinking bool
-	engineResult   chan engine.Move
+	board             engine.BoardState
+	humanColor        engine.Piece
+	hasSelected       bool
+	selected          engine.Square
+	legalMoves        []engine.Move
+	engineThinking    bool
+	engineResult      chan engine.Move
+	awaitingPromotion bool
+	promotionMoves    []engine.Move
 }
 
 const (
@@ -79,11 +81,52 @@ func (g *Game) Update() error {
 			return nil
 		}
 	}
+
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
 		file := x / squareSize
 		rank := 7 - y/squareSize
 		clicked := engine.FileRankToSquareIndex(file, rank)
+
+		if g.awaitingPromotion {
+			destSquare := g.promotionMoves[0].To()
+			destFile, destRank := engine.SquareIndexToFileRank(destSquare)
+			step := -1
+			if destRank == 0 {
+				step = 1
+			}
+			promotionPieces := []engine.Piece{engine.Queen, engine.Rook, engine.Bishop, engine.Knight}
+			for i, p := range promotionPieces {
+				slotSquare := engine.FileRankToSquareIndex(destFile, destRank+i*step)
+				if clicked == slotSquare {
+					for _, m := range g.promotionMoves {
+						if m.Promotion() == p {
+							g.board = engine.MakeMove(g.board, m)
+							sound := moveSound(m, g.board)
+							sounds[sound].Rewind()
+							sounds[sound].Play()
+
+							if g.board.SideToMove().Color() != g.humanColor {
+								g.engineThinking = true
+								g.engineResult = make(chan engine.Move, 1)
+								board := g.board
+								go func() {
+									g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
+								}()
+							}
+							break
+						}
+					}
+					break
+				}
+			}
+
+			g.awaitingPromotion = false
+			g.promotionMoves = nil
+			g.hasSelected = false
+			g.legalMoves = nil
+			return nil
+		}
 
 		if !g.hasSelected {
 			var movesFromClicked []engine.Move
@@ -100,20 +143,20 @@ func (g *Game) Update() error {
 			fmt.Println(g.selected)
 			fmt.Println(len(movesFromClicked))
 		} else {
-			var move engine.Move
-			found := false
+			var candidateMoves []engine.Move
 			for _, m := range g.legalMoves {
 				if m.To() == clicked {
-					move = m
-					found = true
-					break
+					candidateMoves = append(candidateMoves, m)
 				}
 			}
 
-			if found {
-				g.board = engine.MakeMove(g.board, move)
+			switch len(candidateMoves) {
+			case 0:
+				// клик мимо легального хода — просто снимаем выбор ниже
+			case 1:
+				g.board = engine.MakeMove(g.board, candidateMoves[0])
 
-				sound := moveSound(move, g.board)
+				sound := moveSound(candidateMoves[0], g.board)
 				sounds[sound].Rewind()
 				sounds[sound].Play()
 
@@ -125,10 +168,15 @@ func (g *Game) Update() error {
 						g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
 					}()
 				}
+			default:
+				g.awaitingPromotion = true
+				g.promotionMoves = candidateMoves
 			}
 
-			g.hasSelected = false
-			g.legalMoves = nil
+			if !g.awaitingPromotion {
+				g.hasSelected = false
+				g.legalMoves = nil
+			}
 		}
 	}
 	return nil
@@ -149,6 +197,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 			vector.FillRect(screen, x, y, squareSize, squareSize, squareColor, false)
 
+			// Draw pieces
 			square := engine.FileRankToSquareIndex(file, rank)
 			piece := g.board.PieceAt(square)
 
@@ -163,6 +212,46 @@ func (g *Game) Draw(screen *ebiten.Image) {
 					op.GeoM.Translate(float64(x), float64(y))
 					screen.DrawImage(img, op)
 				}
+			}
+		}
+	}
+
+	// Draw transparent circles in the squares of possible moves of the piece
+	if g.hasSelected {
+		for _, move := range g.legalMoves {
+			toFile, toRank := engine.SquareIndexToFileRank(move.To())
+			cx := float32(toFile*squareSize) + squareSize/2
+			cy := float32((7-toRank)*squareSize) + squareSize/2
+			vector.FillCircle(screen, cx, cy, squareSize/6, color.RGBA{0, 0, 0, 80}, true)
+		}
+	}
+
+	if g.awaitingPromotion {
+		destSquare := g.promotionMoves[0].To()
+		destFile, destRank := engine.SquareIndexToFileRank(destSquare)
+
+		step := -1
+		if destRank == 0 {
+			step = 1
+		}
+
+		promotionPieces := []engine.Piece{engine.Queen, engine.Rook, engine.Bishop, engine.Knight}
+
+		for i, p := range promotionPieces {
+			rank := destRank + i*step
+			x := float32(destFile * squareSize)
+			y := float32((7 - rank) * squareSize)
+
+			vector.FillRect(screen, x, y, squareSize, squareSize, color.RGBA{200, 200, 200, 255}, false)
+
+			img := pieceImages[g.humanColor|p]
+			if img != nil {
+				scale := float64(squareSize) / 256.0
+				op := &ebiten.DrawImageOptions{}
+				op.Filter = ebiten.FilterLinear
+				op.GeoM.Scale(scale, scale)
+				op.GeoM.Translate(float64(x), float64(y))
+				screen.DrawImage(img, op)
 			}
 		}
 	}
