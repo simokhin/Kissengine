@@ -42,3 +42,31 @@ func (m Move) Flag() Flag {
 func (m Move) CapturedPiece() Piece {
 	return Piece((m >> 20) & 0xF)
 }
+
+func MakeMove(board BoardState, move Move) BoardState {
+	newBoard := board
+	newBoard.squares[move.From()] = Empty
+
+	piece := board.squares[move.From()]
+
+	if board.sideToMove == WhiteToMove {
+		newBoard.sideToMove = BlackToMove
+	} else {
+		newBoard.sideToMove = WhiteToMove
+	}
+
+	if move.Promotion() != Empty {
+		newBoard.squares[move.To()] = move.Promotion() | piece.Color()
+	} else {
+		newBoard.squares[move.To()] = piece
+	}
+
+	if move.Flag() == EnPassantCapture {
+		toFile, _ := SquareIndexToFileRank(move.To())
+		_, fromRank := SquareIndexToFileRank(move.From())
+		newBoard.squares[FileRankToSquareIndex(toFile, fromRank)] = Empty
+		newBoard.enPassantSquare = NoSquare
+	}
+
+	return newBoard
+}
