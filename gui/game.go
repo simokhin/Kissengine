@@ -2,10 +2,12 @@ package main
 
 import (
 	"MyChessEngine/engine"
+	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -43,6 +45,45 @@ var pieceGlyphs = [15]string{
 }
 
 func (g *Game) Update() error {
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		x, y := ebiten.CursorPosition()
+		file := x / squareSize
+		rank := 7 - y/squareSize
+		clicked := engine.FileRankToSquareIndex(file, rank)
+
+		if !g.hasSelected {
+			var movesFromClicked []engine.Move
+			for _, m := range engine.GenerateLegalMoves(g.board) {
+				if m.From() == clicked {
+					movesFromClicked = append(movesFromClicked, m)
+				}
+			}
+			if len(movesFromClicked) > 0 {
+				g.selected = clicked
+				g.hasSelected = true
+				g.legalMoves = movesFromClicked
+			}
+			fmt.Println(g.selected)
+			fmt.Println(len(movesFromClicked))
+		} else {
+			var move engine.Move
+			found := false
+			for _, m := range g.legalMoves {
+				if m.To() == clicked {
+					move = m
+					found = true
+					break
+				}
+			}
+
+			if found {
+				g.board = engine.MakeMove(g.board, move)
+			}
+
+			g.hasSelected = false
+			g.legalMoves = nil
+		}
+	}
 	return nil
 }
 
