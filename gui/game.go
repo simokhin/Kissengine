@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -21,6 +22,39 @@ type Game struct {
 	engineResult      chan engine.Move
 	awaitingPromotion bool
 	promotionMoves    []engine.Move
+	gameOver          bool
+	gameOverText      string
+}
+
+func (g *Game) applyMove(move engine.Move) {
+	g.board = engine.MakeMove(g.board, move)
+
+	sound := moveSound(move, g.board)
+	sounds[sound].Rewind()
+	sounds[sound].Play()
+
+	if len(engine.GenerateLegalMoves(g.board)) == 0 {
+		g.gameOver = true
+		if g.board.InCheck() {
+			if g.board.SideToMove().Color() == engine.White {
+				g.gameOverText = "Checkmate! Black wins"
+			} else {
+				g.gameOverText = "Checkmate! White wins"
+			}
+		} else {
+			g.gameOverText = "Stalemate - draw"
+		}
+		return
+	}
+
+	if g.board.SideToMove().Color() != g.humanColor {
+		g.engineThinking = true
+		g.engineResult = make(chan engine.Move, 1)
+		board := g.board
+		go func() {
+			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
+		}()
+	}
 }
 
 const (
@@ -69,14 +103,15 @@ func moveSound(move engine.Move, boardAfter engine.BoardState) SoundType {
 }
 
 func (g *Game) Update() error {
+	if g.gameOver {
+		return nil
+	}
+
 	if g.engineThinking {
 		select {
 		case move := <-g.engineResult:
-			g.board = engine.MakeMove(g.board, move)
-			sound := moveSound(move, g.board)
-			sounds[sound].Rewind()
-			sounds[sound].Play()
 			g.engineThinking = false
+			g.applyMove(move)
 		default:
 			return nil
 		}
@@ -101,19 +136,7 @@ func (g *Game) Update() error {
 				if clicked == slotSquare {
 					for _, m := range g.promotionMoves {
 						if m.Promotion() == p {
-							g.board = engine.MakeMove(g.board, m)
-							sound := moveSound(m, g.board)
-							sounds[sound].Rewind()
-							sounds[sound].Play()
-
-							if g.board.SideToMove().Color() != g.humanColor {
-								g.engineThinking = true
-								g.engineResult = make(chan engine.Move, 1)
-								board := g.board
-								go func() {
-									g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
-								}()
-							}
+							g.applyMove(m)
 							break
 						}
 					}
@@ -154,20 +177,7 @@ func (g *Game) Update() error {
 			case 0:
 				// клик мимо легального хода — просто снимаем выбор ниже
 			case 1:
-				g.board = engine.MakeMove(g.board, candidateMoves[0])
-
-				sound := moveSound(candidateMoves[0], g.board)
-				sounds[sound].Rewind()
-				sounds[sound].Play()
-
-				if g.board.SideToMove().Color() != g.humanColor {
-					g.engineThinking = true
-					g.engineResult = make(chan engine.Move, 1)
-					board := g.board
-					go func() {
-						g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
-					}()
-				}
+				g.applyMove(candidateMoves[0])
 			default:
 				g.awaitingPromotion = true
 				g.promotionMoves = candidateMoves
@@ -222,7 +232,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			toFile, toRank := engine.SquareIndexToFileRank(move.To())
 			cx := float32(toFile*squareSize) + squareSize/2
 			cy := float32((7-toRank)*squareSize) + squareSize/2
-			vector.FillCircle(screen, cx, cy, squareSize/6, color.RGBA{0, 0, 0, 80}, true)
+
+			isCapture := move.Flag() == engine.Capture || move.Flag() == engine.EnPassantCapture
+			if isCapture {
+				vector.StrokeCircle(screen, cx, cy, squareSize/2-4, 4, color.RGBA{0, 0, 0, 120}, true)
+			} else {
+				vector.FillCircle(screen, cx, cy, squareSize/6, color.RGBA{0, 0, 0, 80}, true)
+			}
 		}
 	}
 
@@ -254,6 +270,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				screen.DrawImage(img, op)
 			}
 		}
+	}
+
+	if g.gameOver {
+		ebitenutil.DebugPrintAt(screen, g.gameOverText, screenWidth/2-len(g.gameOverText)*3, screenHeight/2)
 	}
 }
 
