@@ -158,6 +158,65 @@ func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	return moves
 }
 
+func GenerateCastlingMoves(board BoardState) []Move {
+	moves := []Move{}
+
+	switch board.sideToMove {
+	case WhiteToMove:
+		e1 := FileRankToSquareIndex(SquareNotationToFileRank("e1"))
+
+		if board.castleRights&WhiteKingSide != 0 {
+			f1 := FileRankToSquareIndex(SquareNotationToFileRank("f1"))
+			g1 := FileRankToSquareIndex(SquareNotationToFileRank("g1"))
+
+			if board.squares[f1] == Empty && board.squares[g1] == Empty {
+				if !board.IsSquareAttacked(e1, Black) && !board.IsSquareAttacked(f1, Black) && !board.IsSquareAttacked(g1, Black) {
+					moves = append(moves, NewMove(e1, g1, Empty, KingCastle, Empty))
+				}
+			}
+		}
+
+		if board.castleRights&WhiteQueenSide != 0 {
+			b1 := FileRankToSquareIndex(SquareNotationToFileRank("b1"))
+			c1 := FileRankToSquareIndex(SquareNotationToFileRank("c1"))
+			d1 := FileRankToSquareIndex(SquareNotationToFileRank("d1"))
+
+			if board.squares[b1] == Empty && board.squares[c1] == Empty && board.squares[d1] == Empty {
+				if !board.IsSquareAttacked(e1, Black) && !board.IsSquareAttacked(d1, Black) && !board.IsSquareAttacked(c1, Black) {
+					moves = append(moves, NewMove(e1, c1, Empty, QueenCastle, Empty))
+				}
+			}
+		}
+	case BlackToMove:
+		e8 := FileRankToSquareIndex(SquareNotationToFileRank("e8"))
+
+		if board.castleRights&BlackKingSide != 0 {
+			f8 := FileRankToSquareIndex(SquareNotationToFileRank("f8"))
+			g8 := FileRankToSquareIndex(SquareNotationToFileRank("g8"))
+
+			if board.squares[f8] == Empty && board.squares[g8] == Empty {
+				if !board.IsSquareAttacked(e8, White) && !board.IsSquareAttacked(f8, White) && !board.IsSquareAttacked(g8, White) {
+					moves = append(moves, NewMove(e8, g8, Empty, KingCastle, Empty))
+				}
+			}
+		}
+
+		if board.castleRights&BlackQueenSide != 0 {
+			b8 := FileRankToSquareIndex(SquareNotationToFileRank("b8"))
+			c8 := FileRankToSquareIndex(SquareNotationToFileRank("c8"))
+			d8 := FileRankToSquareIndex(SquareNotationToFileRank("d8"))
+
+			if board.squares[b8] == Empty && board.squares[c8] == Empty && board.squares[d8] == Empty {
+				if !board.IsSquareAttacked(e8, White) && !board.IsSquareAttacked(d8, White) && !board.IsSquareAttacked(c8, White) {
+					moves = append(moves, NewMove(e8, c8, Empty, QueenCastle, Empty))
+				}
+			}
+		}
+	}
+
+	return moves
+}
+
 func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Move {
 	var offsets []Square
 

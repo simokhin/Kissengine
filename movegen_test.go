@@ -171,6 +171,109 @@ func TestGenerateKnightMoves(t *testing.T) {
 	}
 }
 
+func TestGenerateCastlingMoves(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputFEN         string
+		expectedMovesLen int
+		expectedMoves    []struct {
+			to   string
+			flag Flag
+		}
+	}{
+		{
+			"white king-side castle available when the path is clear and safe",
+			"8/8/8/8/8/8/8/4K2R w K - 0 1",
+			1,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"g1", KingCastle},
+			},
+		},
+		{
+			"white king-side castle blocked by a piece between king and rook",
+			"8/8/8/8/8/8/8/4KN1R w K - 0 1",
+			0,
+			nil,
+		},
+		{
+			"white king-side castle blocked when the king is in check",
+			"4r3/8/8/8/8/8/8/4K2R w K - 0 1",
+			0,
+			nil,
+		},
+		{
+			"white king-side castle blocked when the king passes through an attacked square",
+			"6r1/8/8/8/8/8/8/4K2R w K - 0 1",
+			0,
+			nil,
+		},
+		{
+			"white queen-side castle available when the path is clear and safe",
+			"8/8/8/8/8/8/8/R3K3 w Q - 0 1",
+			1,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"c1", QueenCastle},
+			},
+		},
+		{
+			"white queen-side castle blocked by a piece on b1",
+			"8/8/8/8/8/8/8/RN2K3 w Q - 0 1",
+			0,
+			nil,
+		},
+		{
+			"no castling moves when castle rights are not set",
+			"8/8/8/8/8/8/8/4K2R w - - 0 1",
+			0,
+			nil,
+		},
+		{
+			"black king-side and queen-side castle available",
+			"r3k2r/8/8/8/8/8/8/8 b kq - 0 1",
+			2,
+			[]struct {
+				to   string
+				flag Flag
+			}{
+				{"g8", KingCastle},
+				{"c8", QueenCastle},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := ParseFEN(tt.inputFEN)
+
+			moves := GenerateCastlingMoves(board)
+			if len(moves) != tt.expectedMovesLen {
+				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
+			}
+
+			for _, expected := range tt.expectedMoves {
+				expectedFile, expectedRank := SquareNotationToFileRank(expected.to)
+				expectedTo := FileRankToSquareIndex(expectedFile, expectedRank)
+
+				move, found := findMoveTo(moves, expectedTo)
+				if !found {
+					t.Errorf("expected a move to %s, but none was found", expected.to)
+					continue
+				}
+
+				if move.Flag() != expected.flag {
+					t.Errorf("move to %s: want flag %d, got %d", expected.to, expected.flag, move.Flag())
+				}
+			}
+		})
+	}
+}
+
 func TestGenerateSlidingPieceMoves(t *testing.T) {
 	tests := []struct {
 		name             string
