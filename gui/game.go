@@ -12,6 +12,7 @@ import (
 
 type Game struct {
 	board       engine.BoardState
+	humanColor  engine.Piece
 	hasSelected bool
 	selected    engine.Square
 	legalMoves  []engine.Move
@@ -21,6 +22,8 @@ const (
 	squareSize   = 100
 	screenWidth  = squareSize * 8
 	screenHeight = squareSize * 8
+
+	searchDepth = 4
 )
 
 var (
@@ -77,6 +80,11 @@ func (g *Game) Update() error {
 
 			if found {
 				g.board = engine.MakeMove(g.board, move)
+
+				if g.board.SideToMove().Color() != g.humanColor {
+					engineMove := engine.FindBestMove(g.board, searchDepth)
+					g.board = engine.MakeMove(g.board, engineMove)
+				}
 			}
 
 			g.hasSelected = false

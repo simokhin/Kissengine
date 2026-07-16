@@ -70,6 +70,25 @@ func (s SideToMove) Color() Piece {
 	return Black
 }
 
+func (b BoardState) InCheck() bool {
+	sideColor := b.SideToMove().Color()
+	var opponentColor Piece
+
+	if sideColor == White {
+		opponentColor = Black
+	} else {
+		opponentColor = White
+	}
+
+	for i := range b.squares {
+		if b.squares[i] == sideColor|King {
+			return b.IsSquareAttacked(Square(i), opponentColor)
+		}
+	}
+
+	return false
+}
+
 func SquareIndexToFileRank(index Square) (file, rank int) {
 	file = int(index & 7)
 	rank = int(index >> 4)

@@ -11,7 +11,7 @@ func main() {
 	ebiten.SetWindowSize(800, 800)
 	ebiten.SetWindowTitle("Kissengine GUI")
 
-	game := &Game{board: engine.ParseFEN(engine.StartFen)}
+	game := &Game{board: engine.ParseFEN(engine.StartFen), humanColor: engine.White}
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
