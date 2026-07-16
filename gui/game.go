@@ -6,7 +6,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -19,7 +18,7 @@ type Game struct {
 }
 
 const (
-	squareSize   = 64
+	squareSize   = 100
 	screenWidth  = squareSize * 8
 	screenHeight = squareSize * 8
 )
@@ -107,7 +106,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 			glyph := pieceGlyphs[piece]
 			if glyph != "" {
-				ebitenutil.DebugPrintAt(screen, glyph, int(x), int(y))
+				img := pieceImages[piece]
+				if img != nil {
+					scale := float64(squareSize) / 256.0
+					op := &ebiten.DrawImageOptions{}
+					op.Filter = ebiten.FilterLinear
+					op.GeoM.Scale(scale, scale)
+					op.GeoM.Translate(float64(x), float64(y))
+					screen.DrawImage(img, op)
+				}
 			}
 		}
 	}
