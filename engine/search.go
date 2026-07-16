@@ -41,16 +41,20 @@ func FindBestMove(board BoardState, depth int) Move {
 }
 
 func NegaMax(board BoardState, depth int, alpha, beta Evaluation) Evaluation {
-	if depth == 0 {
+	if depth == 0 && !board.InCheck() {
 		return Evaluate(board)
 	}
 
 	moves := GenerateLegalMoves(board)
 	if len(moves) == 0 {
 		if board.InCheck() {
-			return -(Mate - Evaluation(depth))
+			return -(Mate + Evaluation(depth))
 		}
 		return 0
+	}
+
+	if depth == 0 {
+		return Evaluate(board)
 	}
 
 	for _, move := range moves {
