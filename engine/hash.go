@@ -52,7 +52,14 @@ var enPassantFileKeys [8]uint64
 
 func Store(entry TableEntry) {
 	index := entry.zobristHash & tableMask
-	transpositionalTable[index] = entry
+	existing := transpositionalTable[index]
+
+	// Depth-preferred replacement: keep whatever is already there unless it's an unused
+	// slot or the new entry was searched at least as deep — otherwise a cheap, shallow
+	// entry could evict an expensive, deep one under heavy hash pressure.
+	if existing.zobristHash == 0 || entry.depth >= existing.depth {
+		transpositionalTable[index] = entry
+	}
 }
 
 func Probe(hash ZobristHash) (TableEntry, bool) {
