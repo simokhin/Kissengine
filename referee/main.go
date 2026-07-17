@@ -5,6 +5,7 @@ import (
 	"MyChessEngine/notation"
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -15,10 +16,10 @@ import (
 )
 
 const (
-	numGames     = 10
-	moveTimeMs   = 100
-	moveCap      = 400
-	openingPlies = 4
+	defaultNumGames   = 10
+	defaultMoveTimeMs = 100
+	moveCap           = 400
+	openingPlies      = 4
 )
 
 func randomOpening(plies int) (engine.BoardState, []string) {
@@ -62,17 +63,21 @@ type MatchRecord struct {
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: referee <engine1> <engine2>")
+	moveTimeMs := flag.Int("movetime", defaultMoveTimeMs, "milliseconds allotted per move")
+	numGames := flag.Int("games", defaultNumGames, "number of games to play")
+	flag.Parse()
+
+	if flag.NArg() < 2 {
+		fmt.Println("Usage: referee [-movetime ms] [-games N] <engine1> <engine2>")
 		os.Exit(1)
 	}
 
-	engine1Path := os.Args[1]
-	engine2Path := os.Args[2]
+	engine1Path := flag.Arg(0)
+	engine2Path := flag.Arg(1)
 
 	match := MatchRecord{Engine1: engine1Path, Engine2: engine2Path}
 
-	for i := 0; i < numGames; i++ {
+	for i := 0; i < *numGames; i++ {
 		white, err := startEngine(engine1Path)
 		if err != nil {
 			log.Fatal(err)
@@ -91,7 +96,7 @@ func main() {
 		handshake(white)
 		handshake(black)
 
-		result, moves := playGame(white, black)
+		result, moves := playGame(white, black, *moveTimeMs)
 
 		fmt.Fprintln(white.stdin, "quit")
 		white.cmd.Wait()
@@ -135,7 +140,7 @@ func main() {
 	fmt.Println("results written to match_result.json")
 }
 
-func playGame(white, black *Engine) (engine.Result, []string) {
+func playGame(white, black *Engine, moveTimeMs int) (engine.Result, []string) {
 	board, moveHistory := randomOpening(openingPlies)
 
 	for {
@@ -210,6 +215,7 @@ func startEngine(path string) (*Engine, error) {
 	e := Engine{}
 
 	cmd := exec.Command(path)
+	cmd.Stderr = os.Stderr
 	e.cmd = cmd
 
 	stdin, err := cmd.StdinPipe()

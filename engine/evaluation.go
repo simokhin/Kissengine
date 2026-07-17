@@ -11,6 +11,13 @@ var pieceValues = [7]Evaluation{
 	King:   0,
 }
 
+var kingAttackersValues = []Evaluation{
+	Knight: 2,
+	Bishop: 2,
+	Rook:   3,
+	Queen:  5,
+}
+
 const (
 	bishopPairBonus          Evaluation = 30
 	doubledPawnPenalty       Evaluation = 15
@@ -19,6 +26,7 @@ const (
 	semiOpenFileBonus        Evaluation = 10
 	missingShieldPawnPenalty Evaluation = 10
 	mobilityBonus            Evaluation = 3
+	kingAttackUnitValue      Evaluation = 8
 )
 
 var passedPawnBonus = [8]Evaluation{0, 5, 10, 20, 35, 60, 100, 0}
@@ -34,12 +42,34 @@ func aheadMask(rank int, color Piece) uint8 {
 	return uint8(0xFF) >> (8 - rank)
 }
 
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // mobility counts the squares a knight/bishop/rook/queen could move to right now — either
 // empty squares or squares occupied by an enemy piece. It doesn't build real Move values
 // (that would be needlessly expensive here), just counts reachable destinations.
-func mobility(board BoardState, from Square, piece Piece) int {
-	count := 0
+//
+// Along the way it also tallies kingAttackWeight: a weighted count of how many of those
+// destinations land in the enemy king's zone (the king square plus its 8 neighbors), as a
+// proxy for how much direct piece pressure the enemy king is under right now.
+func mobility(board BoardState, from Square, piece Piece) (count int, kingAttackWeight Evaluation) {
 	pieceColor := piece.Color()
+	var enemyKingFile, enemyKingRank int
+
+	if pieceColor == White {
+		enemyKingFile, enemyKingRank = SquareIndexToFileRank(board.blackKingSquare)
+	} else {
+		enemyKingFile, enemyKingRank = SquareIndexToFileRank(board.whiteKingSquare)
+	}
+
+	inEnemyKingZone := func(to Square) bool {
+		toFile, toRank := SquareIndexToFileRank(to)
+		return abs(toFile-enemyKingFile) <= 1 && abs(toRank-enemyKingRank) <= 1
+	}
 
 	switch piece.Type() {
 	case Knight:
@@ -51,6 +81,9 @@ func mobility(board BoardState, from Square, piece Piece) int {
 			target := board.squares[to]
 			if target == Empty || target.Color() != pieceColor {
 				count++
+				if inEnemyKingZone(to) {
+					kingAttackWeight += kingAttackersValues[piece.Type()]
+				}
 			}
 		}
 	case Bishop, Rook, Queen:
@@ -73,17 +106,23 @@ func mobility(board BoardState, from Square, piece Piece) int {
 				target := board.squares[to]
 				if target == Empty {
 					count++
+					if inEnemyKingZone(to) {
+						kingAttackWeight += kingAttackersValues[piece.Type()]
+					}
 					continue
 				}
 				if target.Color() != pieceColor {
 					count++
+					if inEnemyKingZone(to) {
+						kingAttackWeight += kingAttackersValues[piece.Type()]
+					}
 				}
 				break
 			}
 		}
 	}
 
-	return count
+	return count, kingAttackWeight
 }
 
 // kingShieldPenalty checks the king's own file and the two adjacent files for a friendly
@@ -112,6 +151,7 @@ func Evaluate(board BoardState) Evaluation {
 	var whitePawnRanks, blackPawnRanks [8]uint8
 	var pawnSquares []Square
 	var rookSquares []Square
+	var whiteKingAttackWeight, blackKingAttackWeight Evaluation
 
 	for i := range board.squares {
 		piece := board.squares[i]
@@ -142,11 +182,18 @@ func Evaluate(board BoardState) Evaluation {
 		}
 
 		if piece.Type() == Knight || piece.Type() == Bishop || piece.Type() == Rook || piece.Type() == Queen {
-			mobilityScore := Evaluation(mobility(board, Square(i), piece)) * mobilityBonus
+			moveCount, kingAttackWeight := mobility(board, Square(i), piece)
+			mobilityScore := Evaluation(moveCount) * mobilityBonus
 			if piece.Color() == board.SideToMove().Color() {
 				evaluation += mobilityScore
 			} else {
 				evaluation -= mobilityScore
+			}
+
+			if piece.Color() == White {
+				blackKingAttackWeight += kingAttackWeight
+			} else {
+				whiteKingAttackWeight += kingAttackWeight
 			}
 		}
 
@@ -245,12 +292,19 @@ func Evaluate(board BoardState) Evaluation {
 	whiteShieldPenalty := Evaluation(phase * float64(kingShieldPenalty(board.whiteKingSquare, White, whitePawnRanks)))
 	blackShieldPenalty := Evaluation(phase * float64(kingShieldPenalty(board.blackKingSquare, Black, blackPawnRanks)))
 
+	whiteKingAttackPenalty := Evaluation(phase * float64(whiteKingAttackWeight*kingAttackUnitValue))
+	blackKingAttackPenalty := Evaluation(phase * float64(blackKingAttackWeight*kingAttackUnitValue))
+
 	if board.SideToMove().Color() == White {
 		evaluation -= whiteShieldPenalty
 		evaluation += blackShieldPenalty
+		evaluation -= whiteKingAttackPenalty
+		evaluation += blackKingAttackPenalty
 	} else {
 		evaluation -= blackShieldPenalty
 		evaluation += whiteShieldPenalty
+		evaluation -= blackKingAttackPenalty
+		evaluation += whiteKingAttackPenalty
 	}
 
 	if whiteBishops >= 2 {
