@@ -16,22 +16,28 @@ const (
 	Infinity      Evaluation = 1_000_000
 	Mate                     = 100_000
 	MateThreshold            = Mate - 1000
+	killerBonus              = 50
 )
 
-func moveScore(board BoardState, move Move, ttMove Move) int {
+var killerMoves [128][2]Move
+
+func moveScore(board BoardState, move Move, ttMove Move, killer1, killer2 Move) int {
 	if move == ttMove {
 		return 1_000_000
 	}
 	if move.CapturedPiece() == Empty {
+		if move == killer1 || move == killer2 {
+			return killerBonus
+		}
 		return 0
 	}
 	attacker := board.PieceAt(move.From())
 	return int(pieceValues[move.CapturedPiece().Type()])*10 - int(pieceValues[attacker.Type()])
 }
 
-func orderMoves(board BoardState, moves []Move, ttMove Move) []Move {
+func orderMoves(board BoardState, moves []Move, ttMove Move, killer1, killer2 Move) []Move {
 	sort.Slice(moves, func(i, j int) bool {
-		return moveScore(board, moves[i], ttMove) > moveScore(board, moves[j], ttMove)
+		return moveScore(board, moves[i], ttMove, killer1, killer2) > moveScore(board, moves[j], ttMove, killer1, killer2)
 	})
 	return moves
 }
@@ -74,7 +80,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 	var ply int
 
 	moves := GenerateLegalMoves(board)
-	orderMoves(board, moves, Move(0))
+	orderMoves(board, moves, Move(0), killerMoves[0][0], killerMoves[0][1])
 
 	best := -Infinity
 
@@ -148,7 +154,7 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 			}
 		}
 	}
-	orderMoves(board, moves, entry.bestMove)
+	orderMoves(board, moves, entry.bestMove, Move(0), Move(0))
 
 	if inCheck && len(moves) == 0 {
 		return -Mate, true
@@ -240,7 +246,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 	}
 
 	moves := GenerateLegalMoves(board)
-	orderMoves(board, moves, entry.bestMove)
+	orderMoves(board, moves, entry.bestMove, killerMoves[ply][0], killerMoves[ply][1])
 
 	if len(moves) == 0 {
 		if board.InCheck() {
@@ -266,6 +272,11 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		score = -score
 
 		if score >= beta {
+			if move.CapturedPiece() == Empty && move != killerMoves[ply][0] {
+				killerMoves[ply][1] = killerMoves[ply][0]
+				killerMoves[ply][0] = move
+			}
+
 			storedEval := beta
 			if storedEval > MateThreshold {
 				storedEval += Evaluation(ply)
