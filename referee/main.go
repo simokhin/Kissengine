@@ -8,16 +8,36 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
 )
 
 const (
-	numGames   = 10
-	moveTimeMs = 100
-	moveCap    = 400
+	numGames     = 10
+	moveTimeMs   = 100
+	moveCap      = 400
+	openingPlies = 4
 )
+
+func randomOpening(plies int) (engine.BoardState, []string) {
+	board := engine.ParseFEN(engine.StartFen)
+	var history []string
+
+	for i := 0; i < plies; i++ {
+		moves := engine.GenerateLegalMoves(board)
+		if len(moves) == 0 {
+			break
+		}
+
+		move := moves[rand.Intn(len(moves))]
+		board = engine.MakeMove(board, move)
+		history = append(history, notation.MoveToUCI(move))
+	}
+
+	return board, history
+}
 
 type Engine struct {
 	cmd    *exec.Cmd
@@ -116,8 +136,7 @@ func main() {
 }
 
 func playGame(white, black *Engine) (engine.Result, []string) {
-	board := engine.ParseFEN(engine.StartFen)
-	var moveHistory []string
+	board, moveHistory := randomOpening(openingPlies)
 
 	for {
 		if len(engine.GenerateLegalMoves(board)) == 0 {

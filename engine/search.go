@@ -25,6 +25,11 @@ func orderMoves(board BoardState, moves []Move) []Move {
 	return moves
 }
 
+func FindBestMove(board BoardState, depth int) Move {
+	move, _ := findBestMove(board, depth, time.Time{})
+	return move
+}
+
 func FindBestMoveByTime(board BoardState, timeLimit time.Duration) Move {
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
@@ -33,13 +38,17 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration) Move {
 		if time.Now().After(deadline) {
 			break
 		}
-		bestMove = FindBestMove(board, depth)
+		move, ok := findBestMove(board, depth, deadline)
+		if !ok {
+			break
+		}
+		bestMove = move
 	}
 
 	return bestMove
 }
 
-func FindBestMove(board BoardState, depth int) Move {
+func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) {
 	var bestMove Move
 
 	moves := GenerateLegalMoves(board)
@@ -49,19 +58,27 @@ func FindBestMove(board BoardState, depth int) Move {
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		moveEvaluation := -NegaMax(newBoard, depth-1, -Infinity, -best)
+		score, ok := negaMax(newBoard, depth-1, -Infinity, -best, deadline)
+		if !ok {
+			return bestMove, false
+		}
+		moveEvaluation := -score
 		if moveEvaluation > best {
 			best = moveEvaluation
 			bestMove = move
 		}
 	}
 
-	return bestMove
+	return bestMove, true
 }
 
-func NegaMax(board BoardState, depth int, alpha, beta Evaluation) Evaluation {
+func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+	if !deadline.IsZero() && time.Now().After(deadline) {
+		return 0, false
+	}
+
 	if depth == 0 && !board.InCheck() {
-		return Evaluate(board)
+		return Evaluate(board), true
 	}
 
 	moves := GenerateLegalMoves(board)
@@ -69,26 +86,30 @@ func NegaMax(board BoardState, depth int, alpha, beta Evaluation) Evaluation {
 
 	if len(moves) == 0 {
 		if board.InCheck() {
-			return -(Mate + Evaluation(depth))
+			return -(Mate + Evaluation(depth)), true
 		}
-		return 0
+		return 0, true
 	}
 
 	if depth == 0 {
-		return Evaluate(board)
+		return Evaluate(board), true
 	}
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score := -NegaMax(newBoard, depth-1, -beta, -alpha)
+		score, ok := negaMax(newBoard, depth-1, -beta, -alpha, deadline)
+		if !ok {
+			return 0, false
+		}
+		score = -score
 
 		if score >= beta {
-			return beta
+			return beta, true
 		}
 		if score > alpha {
 			alpha = score
 		}
 	}
 
-	return alpha
+	return alpha, true
 }
