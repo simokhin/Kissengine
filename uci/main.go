@@ -13,19 +13,27 @@ import (
 
 var history []engine.ZobristHash
 
-func printInfo(result engine.SearchResult) {
+func printInfo(result engine.SearchResult, pv []engine.Move) {
+	var scoreStr string
 	switch {
 	case result.Score > engine.MateThreshold:
 		pliesToMate := engine.Mate - result.Score
 		movesToMate := (pliesToMate + 1) / 2
-		fmt.Printf("info depth %d nodes %d score mate %d\n", result.Depth, result.Nodes, movesToMate)
+		scoreStr = fmt.Sprintf("mate %d", movesToMate)
 	case result.Score < -engine.MateThreshold:
 		pliesToMate := engine.Mate + result.Score
 		movesToMate := (pliesToMate + 1) / 2
-		fmt.Printf("info depth %d nodes %d score mate -%d\n", result.Depth, result.Nodes, movesToMate)
+		scoreStr = fmt.Sprintf("mate -%d", movesToMate)
 	default:
-		fmt.Printf("info depth %d nodes %d score cp %d\n", result.Depth, result.Nodes, result.Score)
+		scoreStr = fmt.Sprintf("cp %d", result.Score)
 	}
+
+	pvStrs := make([]string, len(pv))
+	for i, move := range pv {
+		pvStrs[i] = notation.MoveToUCI(move)
+	}
+
+	fmt.Printf("info depth %d nodes %d score %s pv %s\n", result.Depth, result.Nodes, scoreStr, strings.Join(pvStrs, " "))
 }
 
 func main() {
@@ -102,9 +110,10 @@ func main() {
 
 				depth, _ := strconv.Atoi(fields[2])
 				result := engine.FindBestMove(board, depth, history)
+				pv := engine.ExtractPV(board, result.Depth)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				printInfo(result)
+				printInfo(result, pv)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			case "movetime":
 				if len(fields) < 3 {
@@ -117,10 +126,11 @@ func main() {
 				}
 
 				ms, _ := strconv.Atoi(fields[2])
-				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond, history)
+				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond, history, false)
+				pv := engine.ExtractPV(board, result.Depth)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				printInfo(result)
+				printInfo(result, pv)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			case "wtime":
 				if len(engine.GenerateLegalMoves(board)) == 0 {
@@ -150,10 +160,11 @@ func main() {
 
 				allocated := min(myTime/30+myInc, myTime/2)
 
-				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond, history)
+				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond, history, true)
+				pv := engine.ExtractPV(board, result.Depth)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				printInfo(result)
+				printInfo(result, pv)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			}
 		case "quit":

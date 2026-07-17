@@ -72,7 +72,12 @@ func FindBestMove(board BoardState, depth int, history []ZobristHash) SearchResu
 	return searchResult
 }
 
-func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []ZobristHash) SearchResult {
+// FindBestMoveByTime searches iteratively deeper until timeLimit runs out. allowEarlyStop
+// controls whether it may return before the full budget is used, once the next iteration
+// is predicted not to finish in time. That's only a genuine saving when leftover time
+// carries over to future moves (wtime/btime) — for a fixed movetime, there's no future
+// move to bank it for, so it should always spend the whole budget instead.
+func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []ZobristHash, allowEarlyStop bool) SearchResult {
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
 	var bestDepth int
@@ -92,7 +97,7 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 		// but the actual observed growth rate is a decent estimate. If that predicted
 		// duration doesn't fit in what's left, stop now instead of burning the rest of
 		// the budget on an iteration that's virtually guaranteed not to finish.
-		if lastDuration > 0 && prevDuration > 0 {
+		if allowEarlyStop && lastDuration > 0 && prevDuration > 0 {
 			growth := float64(lastDuration) / float64(prevDuration)
 			predicted := time.Duration(float64(lastDuration) * growth)
 			if predicted > remaining {
@@ -136,6 +141,12 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 			bestMove = move
 		}
 	}
+
+	// The root itself never goes through negaMax, so without this it would never end up
+	// in the TT — and ExtractPV, probing from the root, would find nothing to start from.
+	// ply is always 0 here, so there's no mate-score shift to apply (the offset would be 0).
+	hash := ComputeHash(board)
+	Store(TableEntry{zobristHash: hash, depth: depth, evaluation: best, flag: Exact, bestMove: bestMove})
 
 	return bestMove, best, true
 }
@@ -422,4 +433,29 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 	}
 	Store(TableEntry{zobristHash: hash, depth: depth, evaluation: storedEval, flag: flag, bestMove: bestMove})
 	return alpha, true
+}
+
+// ExtractPV walks the transposition table from board, following each position's stored
+// best move, to reconstruct the line the search believes is best. It stops at maxLength,
+// at a position with no usable TT entry, or if a stored move turns out illegal here (a
+// stale/unrelated entry) — all of which are normal, safe places for the line to end.
+func ExtractPV(board BoardState, maxLength int) []Move {
+	var pv []Move
+
+	for range maxLength {
+		hash := ComputeHash(board)
+		entry, found := Probe(hash)
+		if !found || entry.bestMove == 0 {
+			break
+		}
+
+		if !slices.Contains(GenerateLegalMoves(board), entry.bestMove) {
+			break
+		}
+
+		pv = append(pv, entry.bestMove)
+		board = MakeMove(board, entry.bestMove)
+	}
+
+	return pv
 }

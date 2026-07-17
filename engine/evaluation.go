@@ -18,6 +18,7 @@ const (
 	openFileBonus            Evaluation = 20
 	semiOpenFileBonus        Evaluation = 10
 	missingShieldPawnPenalty Evaluation = 10
+	mobilityBonus            Evaluation = 3
 )
 
 var passedPawnBonus = [8]Evaluation{0, 5, 10, 20, 35, 60, 100, 0}
@@ -31,6 +32,58 @@ func aheadMask(rank int, color Piece) uint8 {
 		return uint8(0xFF) << (rank + 1)
 	}
 	return uint8(0xFF) >> (8 - rank)
+}
+
+// mobility counts the squares a knight/bishop/rook/queen could move to right now — either
+// empty squares or squares occupied by an enemy piece. It doesn't build real Move values
+// (that would be needlessly expensive here), just counts reachable destinations.
+func mobility(board BoardState, from Square, piece Piece) int {
+	count := 0
+	pieceColor := piece.Color()
+
+	switch piece.Type() {
+	case Knight:
+		for _, offset := range KnightOffsets {
+			to := from + offset
+			if !to.IsOnBoard() {
+				continue
+			}
+			target := board.squares[to]
+			if target == Empty || target.Color() != pieceColor {
+				count++
+			}
+		}
+	case Bishop, Rook, Queen:
+		var offsets []Square
+		switch piece.Type() {
+		case Bishop:
+			offsets = BishopOffsets[:]
+		case Rook:
+			offsets = RookOffsets[:]
+		case Queen:
+			offsets = QueenOffsets[:]
+		}
+		for _, offset := range offsets {
+			to := from
+			for {
+				to += offset
+				if !to.IsOnBoard() {
+					break
+				}
+				target := board.squares[to]
+				if target == Empty {
+					count++
+					continue
+				}
+				if target.Color() != pieceColor {
+					count++
+				}
+				break
+			}
+		}
+	}
+
+	return count
 }
 
 // kingShieldPenalty checks the king's own file and the two adjacent files for a friendly
@@ -86,6 +139,15 @@ func Evaluate(board BoardState) Evaluation {
 
 		if piece.Type() == Rook {
 			rookSquares = append(rookSquares, Square(i))
+		}
+
+		if piece.Type() == Knight || piece.Type() == Bishop || piece.Type() == Rook || piece.Type() == Queen {
+			mobilityScore := Evaluation(mobility(board, Square(i), piece)) * mobilityBonus
+			if piece.Color() == board.SideToMove().Color() {
+				evaluation += mobilityScore
+			} else {
+				evaluation -= mobilityScore
+			}
 		}
 
 		var positional Evaluation
