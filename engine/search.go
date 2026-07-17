@@ -20,6 +20,7 @@ const (
 )
 
 var killerMoves [128][2]Move
+var historyHeuristic [128][128]int
 
 func moveScore(board BoardState, move Move, ttMove Move, killer1, killer2 Move) int {
 	if move == ttMove {
@@ -29,7 +30,7 @@ func moveScore(board BoardState, move Move, ttMove Move, killer1, killer2 Move) 
 		if move == killer1 || move == killer2 {
 			return killerBonus
 		}
-		return 0
+		return historyHeuristic[move.From()][move.To()]
 	}
 	attacker := board.PieceAt(move.From())
 	return int(pieceValues[move.CapturedPiece().Type()])*10 - int(pieceValues[attacker.Type()])
@@ -272,9 +273,12 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		score = -score
 
 		if score >= beta {
-			if move.CapturedPiece() == Empty && move != killerMoves[ply][0] {
-				killerMoves[ply][1] = killerMoves[ply][0]
-				killerMoves[ply][0] = move
+			if move.CapturedPiece() == Empty {
+				historyHeuristic[move.From()][move.To()] += depth * depth
+				if move != killerMoves[ply][0] {
+					killerMoves[ply][1] = killerMoves[ply][0]
+					killerMoves[ply][0] = move
+				}
 			}
 
 			storedEval := beta
