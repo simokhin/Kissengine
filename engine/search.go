@@ -6,11 +6,15 @@ import (
 )
 
 const (
-	Infinity Evaluation = 1_000_000
-	Mate     Evaluation = 100_000
+	Infinity      Evaluation = 1_000_000
+	Mate                     = 100_000
+	MateThreshold            = Mate - 1000
 )
 
-func moveScore(board BoardState, move Move) int {
+func moveScore(board BoardState, move Move, ttMove Move) int {
+	if move == ttMove {
+		return 1_000_000
+	}
 	if move.CapturedPiece() == Empty {
 		return 0
 	}
@@ -18,9 +22,9 @@ func moveScore(board BoardState, move Move) int {
 	return int(pieceValues[move.CapturedPiece().Type()])*10 - int(pieceValues[attacker.Type()])
 }
 
-func orderMoves(board BoardState, moves []Move) []Move {
+func orderMoves(board BoardState, moves []Move, ttMove Move) []Move {
 	sort.Slice(moves, func(i, j int) bool {
-		return moveScore(board, moves[i]) > moveScore(board, moves[j])
+		return moveScore(board, moves[i], ttMove) > moveScore(board, moves[j], ttMove)
 	})
 	return moves
 }
@@ -50,15 +54,16 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration) Move {
 
 func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) {
 	var bestMove Move
+	var ply int
 
 	moves := GenerateLegalMoves(board)
-	orderMoves(board, moves)
+	orderMoves(board, moves, Move(0))
 
 	best := -Infinity
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, -Infinity, -best, deadline)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline)
 		if !ok {
 			return bestMove, false
 		}
@@ -72,9 +77,37 @@ func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) 
 	return bestMove, true
 }
 
-func quiescence(board BoardState, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
+	}
+
+	// quiescence has no search-depth parameter of its own, so entries it stores always use depth 0 —
+	// that also makes any entry from negaMax (depth >= 0) trustworthy here, since a fuller search is only better.
+	hash := ComputeHash(board)
+	entry, found := Probe(hash)
+	adjustedEval := entry.evaluation
+	if adjustedEval > MateThreshold {
+		adjustedEval -= Evaluation(ply)
+	} else if adjustedEval < -MateThreshold {
+		adjustedEval += Evaluation(ply)
+	}
+	if found {
+		switch entry.flag {
+		case Exact:
+			return adjustedEval, true
+		case LowerBound:
+			if adjustedEval > alpha {
+				alpha = adjustedEval
+			}
+		case UpperBound:
+			if adjustedEval < beta {
+				beta = adjustedEval
+			}
+		}
+		if alpha >= beta {
+			return adjustedEval, true
+		}
 	}
 
 	inCheck := board.InCheck()
@@ -96,67 +129,97 @@ func quiescence(board BoardState, alpha, beta Evaluation, deadline time.Time) (E
 			}
 		}
 	}
-	orderMoves(board, moves)
+	orderMoves(board, moves, entry.bestMove)
 
 	if inCheck && len(moves) == 0 {
 		return -Mate, true
 	}
 
+	alphaOrig := alpha
+	var bestMove Move
+
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := quiescence(newBoard, -beta, -alpha, deadline)
+		score, ok := quiescence(newBoard, ply+1, -beta, -alpha, deadline)
 		if !ok {
 			return 0, false
 		}
 		score = -score
 
 		if score >= beta {
+			storedEval := beta
+			if storedEval > MateThreshold {
+				storedEval += Evaluation(ply)
+			} else if storedEval < -MateThreshold {
+				storedEval -= Evaluation(ply)
+			}
+			Store(TableEntry{zobristHash: hash, depth: 0, evaluation: storedEval, flag: LowerBound, bestMove: move})
 			return beta, true
 		}
 		if score > alpha {
 			alpha = score
+			bestMove = move
 		}
 	}
+
+	flag := UpperBound
+	if alpha > alphaOrig {
+		flag = Exact
+	}
+	storedEval := alpha
+	if storedEval > MateThreshold {
+		storedEval += Evaluation(ply)
+	} else if storedEval < -MateThreshold {
+		storedEval -= Evaluation(ply)
+	}
+	Store(TableEntry{zobristHash: hash, depth: 0, evaluation: storedEval, flag: flag, bestMove: bestMove})
+
 	return alpha, true
 }
 
-func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
 	}
 
 	if depth == 0 && !board.InCheck() {
-		return quiescence(board, alpha, beta, deadline)
+		return quiescence(board, ply, alpha, beta, deadline)
 	}
 
 	var bestMove Move
 
 	hash := ComputeHash(board)
 	entry, found := Probe(hash)
+	adjustedEval := entry.evaluation
+	if adjustedEval > MateThreshold {
+		adjustedEval -= Evaluation(ply)
+	} else if adjustedEval < -MateThreshold {
+		adjustedEval += Evaluation(ply)
+	}
 	if found && entry.depth >= depth {
 		switch entry.flag {
 		case Exact:
-			return entry.evaluation, true
+			return adjustedEval, true
 		case LowerBound:
-			if entry.evaluation > alpha {
-				alpha = entry.evaluation
+			if adjustedEval > alpha {
+				alpha = adjustedEval
 			}
 		case UpperBound:
-			if entry.evaluation < beta {
-				beta = entry.evaluation
+			if adjustedEval < beta {
+				beta = adjustedEval
 			}
 		}
 		if alpha >= beta {
-			return entry.evaluation, true
+			return adjustedEval, true
 		}
 	}
 
 	moves := GenerateLegalMoves(board)
-	orderMoves(board, moves)
+	orderMoves(board, moves, entry.bestMove)
 
 	if len(moves) == 0 {
 		if board.InCheck() {
-			return -(Mate + Evaluation(depth)), true
+			return -(Mate - Evaluation(ply)), true
 		}
 		return 0, true
 	}
@@ -164,19 +227,25 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 	alphaOrig := alpha
 
 	if depth == 0 {
-		return quiescence(board, alpha, beta, deadline)
+		return quiescence(board, ply, alpha, beta, deadline)
 	}
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, -beta, -alpha, deadline)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline)
 		if !ok {
 			return 0, false
 		}
 		score = -score
 
 		if score >= beta {
-			Store(TableEntry{zobristHash: hash, depth: depth, evaluation: beta, flag: LowerBound, bestMove: move})
+			storedEval := beta
+			if storedEval > MateThreshold {
+				storedEval += Evaluation(ply)
+			} else if storedEval < -MateThreshold {
+				storedEval -= Evaluation(ply)
+			}
+			Store(TableEntry{zobristHash: hash, depth: depth, evaluation: storedEval, flag: LowerBound, bestMove: move})
 			return beta, true
 		}
 		if score > alpha {
@@ -190,6 +259,12 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 		flag = Exact
 	}
 
-	Store(TableEntry{zobristHash: hash, depth: depth, evaluation: alpha, flag: flag, bestMove: bestMove})
+	storedEval := alpha
+	if storedEval > MateThreshold {
+		storedEval += Evaluation(ply)
+	} else if storedEval < -MateThreshold {
+		storedEval -= Evaluation(ply)
+	}
+	Store(TableEntry{zobristHash: hash, depth: depth, evaluation: storedEval, flag: flag, bestMove: bestMove})
 	return alpha, true
 }
