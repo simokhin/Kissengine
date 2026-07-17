@@ -19,7 +19,7 @@ type Game struct {
 	selected          engine.Square
 	legalMoves        []engine.Move
 	engineThinking    bool
-	engineResult      chan engine.Move
+	engineResult      chan engine.SearchResult
 	awaitingPromotion bool
 	promotionMoves    []engine.Move
 	gameOver          bool
@@ -49,7 +49,7 @@ func (g *Game) applyMove(move engine.Move) {
 
 	if g.board.SideToMove().Color() != g.humanColor {
 		g.engineThinking = true
-		g.engineResult = make(chan engine.Move, 1)
+		g.engineResult = make(chan engine.SearchResult, 1)
 		board := g.board
 		go func() {
 			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
@@ -109,9 +109,9 @@ func (g *Game) Update() error {
 
 	if g.engineThinking {
 		select {
-		case move := <-g.engineResult:
+		case result := <-g.engineResult:
 			g.engineThinking = false
-			g.applyMove(move)
+			g.applyMove(result.Move)
 		default:
 			return nil
 		}

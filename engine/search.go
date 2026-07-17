@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+type SearchResult struct {
+	Move  Move
+	Nodes int
+	Depth int
+}
+
 const (
 	Infinity      Evaluation = 1_000_000
 	Mate                     = 100_000
@@ -29,30 +35,40 @@ func orderMoves(board BoardState, moves []Move, ttMove Move) []Move {
 	return moves
 }
 
-func FindBestMove(board BoardState, depth int) Move {
-	move, _ := findBestMove(board, depth, time.Time{})
-	return move
+func FindBestMove(board BoardState, depth int) SearchResult {
+	var searchResult SearchResult
+	var nodes int
+	move, _ := findBestMove(board, depth, time.Time{}, &nodes)
+
+	searchResult.Move = move
+	searchResult.Depth = depth
+	searchResult.Nodes = nodes
+
+	return searchResult
 }
 
-func FindBestMoveByTime(board BoardState, timeLimit time.Duration) Move {
+func FindBestMoveByTime(board BoardState, timeLimit time.Duration) SearchResult {
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
+	var bestDepth int
+	var nodes int
 
 	for depth := 1; ; depth++ {
 		if time.Now().After(deadline) {
 			break
 		}
-		move, ok := findBestMove(board, depth, deadline)
+		move, ok := findBestMove(board, depth, deadline, &nodes)
 		if !ok {
 			break
 		}
 		bestMove = move
+		bestDepth = depth
 	}
 
-	return bestMove
+	return SearchResult{Move: bestMove, Depth: bestDepth, Nodes: nodes}
 }
 
-func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) {
+func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int) (Move, bool) {
 	var bestMove Move
 	var ply int
 
@@ -63,7 +79,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) 
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes)
 		if !ok {
 			return bestMove, false
 		}
@@ -77,7 +93,9 @@ func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) 
 	return bestMove, true
 }
 
-func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int) (Evaluation, bool) {
+	*nodes++
+
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
 	}
@@ -140,7 +158,7 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := quiescence(newBoard, ply+1, -beta, -alpha, deadline)
+		score, ok := quiescence(newBoard, ply+1, -beta, -alpha, deadline, nodes)
 		if !ok {
 			return 0, false
 		}
@@ -177,13 +195,15 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 	return alpha, true
 }
 
-func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int) (Evaluation, bool) {
+	*nodes++
+
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
 	}
 
 	if depth == 0 && !board.InCheck() {
-		return quiescence(board, ply, alpha, beta, deadline)
+		return quiescence(board, ply, alpha, beta, deadline, nodes)
 	}
 
 	var bestMove Move
@@ -227,12 +247,12 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 	alphaOrig := alpha
 
 	if depth == 0 {
-		return quiescence(board, ply, alpha, beta, deadline)
+		return quiescence(board, ply, alpha, beta, deadline, nodes)
 	}
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes)
 		if !ok {
 			return 0, false
 		}
