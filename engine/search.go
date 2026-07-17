@@ -129,6 +129,28 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 		return quiescence(board, alpha, beta, deadline)
 	}
 
+	var bestMove Move
+
+	hash := ComputeHash(board)
+	entry, found := Probe(hash)
+	if found && entry.depth >= depth {
+		switch entry.flag {
+		case Exact:
+			return entry.evaluation, true
+		case LowerBound:
+			if entry.evaluation > alpha {
+				alpha = entry.evaluation
+			}
+		case UpperBound:
+			if entry.evaluation < beta {
+				beta = entry.evaluation
+			}
+		}
+		if alpha >= beta {
+			return entry.evaluation, true
+		}
+	}
+
 	moves := GenerateLegalMoves(board)
 	orderMoves(board, moves)
 
@@ -138,6 +160,8 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 		}
 		return 0, true
 	}
+
+	alphaOrig := alpha
 
 	if depth == 0 {
 		return quiescence(board, alpha, beta, deadline)
@@ -152,12 +176,20 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 		score = -score
 
 		if score >= beta {
+			Store(TableEntry{zobristHash: hash, depth: depth, evaluation: beta, flag: LowerBound, bestMove: move})
 			return beta, true
 		}
 		if score > alpha {
 			alpha = score
+			bestMove = move
 		}
 	}
 
+	flag := UpperBound
+	if alpha > alphaOrig {
+		flag = Exact
+	}
+
+	Store(TableEntry{zobristHash: hash, depth: depth, evaluation: alpha, flag: flag, bestMove: bestMove})
 	return alpha, true
 }
