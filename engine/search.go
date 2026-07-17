@@ -3,8 +3,19 @@ package engine
 import (
 	"slices"
 	"sort"
+	"sync/atomic"
 	"time"
 )
+
+// shouldStop reports whether the search should unwind right now — either because the
+// deadline has passed, or because something external (a UCI "stop" command) asked for
+// an immediate interruption. stop may be nil when no such interruption is possible.
+func shouldStop(deadline time.Time, stop *atomic.Bool) bool {
+	if stop != nil && stop.Load() {
+		return true
+	}
+	return !deadline.IsZero() && time.Now().After(deadline)
+}
 
 type SearchResult struct {
 	Move  Move
@@ -62,7 +73,7 @@ func orderMoves(board BoardState, moves []Move, ttMove Move, killer1, killer2 Mo
 func FindBestMove(board BoardState, depth int, history []ZobristHash) SearchResult {
 	var searchResult SearchResult
 	var nodes int
-	move, score, _ := findBestMove(board, depth, time.Time{}, &nodes, history)
+	move, score, _ := findBestMove(board, depth, time.Time{}, &nodes, history, nil)
 
 	searchResult.Move = move
 	searchResult.Depth = depth
@@ -77,7 +88,7 @@ func FindBestMove(board BoardState, depth int, history []ZobristHash) SearchResu
 // is predicted not to finish in time. That's only a genuine saving when leftover time
 // carries over to future moves (wtime/btime) — for a fixed movetime, there's no future
 // move to bank it for, so it should always spend the whole budget instead.
-func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []ZobristHash, allowEarlyStop bool) SearchResult {
+func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []ZobristHash, allowEarlyStop bool, stop *atomic.Bool) SearchResult {
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
 	var bestDepth int
@@ -86,10 +97,10 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 	var lastDuration, prevDuration time.Duration
 
 	for depth := 1; ; depth++ {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
+		if shouldStop(deadline, stop) {
 			break
 		}
+		remaining := time.Until(deadline)
 
 		// Predict the next iteration's duration from how much the previous one grew
 		// relative to the one before it — depth-to-depth growth varies a lot in this
@@ -106,7 +117,7 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 		}
 
 		iterationStart := time.Now()
-		move, score, ok := findBestMove(board, depth, deadline, &nodes, history)
+		move, score, ok := findBestMove(board, depth, deadline, &nodes, history, stop)
 		prevDuration = lastDuration
 		lastDuration = time.Since(iterationStart)
 		if !ok {
@@ -120,7 +131,7 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 	return SearchResult{Move: bestMove, Depth: bestDepth, Nodes: nodes, Score: bestScore}
 }
 
-func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, history []ZobristHash) (Move, Evaluation, bool) {
+func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, history []ZobristHash, stop *atomic.Bool) (Move, Evaluation, bool) {
 	var bestMove Move
 	var ply int
 
@@ -131,7 +142,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history, true)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history, true, stop)
 		if !ok {
 			return bestMove, best, false
 		}
@@ -151,10 +162,10 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 	return bestMove, best, true
 }
 
-func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int) (Evaluation, bool) {
+func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, stop *atomic.Bool) (Evaluation, bool) {
 	*nodes++
 
-	if !deadline.IsZero() && time.Now().After(deadline) {
+	if shouldStop(deadline, stop) {
 		return 0, false
 	}
 
@@ -220,7 +231,7 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := quiescence(newBoard, ply+1, -beta, -alpha, deadline, nodes)
+		score, ok := quiescence(newBoard, ply+1, -beta, -alpha, deadline, nodes, stop)
 		if !ok {
 			return 0, false
 		}
@@ -269,10 +280,10 @@ func hasNonPawnMaterial(board BoardState, color Piece) bool {
 	return false
 }
 
-func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, history []ZobristHash, allowNull bool) (Evaluation, bool) {
+func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, history []ZobristHash, allowNull bool, stop *atomic.Bool) (Evaluation, bool) {
 	*nodes++
 
-	if !deadline.IsZero() && time.Now().After(deadline) {
+	if shouldStop(deadline, stop) {
 		return 0, false
 	}
 
@@ -282,7 +293,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 	}
 
 	if depth == 0 && !board.InCheck() {
-		return quiescence(board, ply, alpha, beta, deadline, nodes)
+		return quiescence(board, ply, alpha, beta, deadline, nodes, stop)
 	}
 
 	var bestMove Move
@@ -325,7 +336,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		if depth >= 6 {
 			R = 3
 		}
-		score, ok := negaMax(nullBoard, depth-1-R, ply+1, -beta, -beta+1, deadline, nodes, history, false)
+		score, ok := negaMax(nullBoard, depth-1-R, ply+1, -beta, -beta+1, deadline, nodes, history, false, stop)
 		if !ok {
 			return 0, false
 		}
@@ -336,7 +347,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 			// Without this, unverified null-move cutoffs occasionally hide a zugzwang-like error
 			// that the shallow null search missed, causing wildly inconsistent node counts between
 			// neighboring depths.
-			verifyScore, ok := negaMax(board, depth-R, ply, alpha, beta, deadline, nodes, history, false)
+			verifyScore, ok := negaMax(board, depth-R, ply, alpha, beta, deadline, nodes, history, false, stop)
 			if !ok {
 				return 0, false
 			}
@@ -359,7 +370,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 	alphaOrig := alpha
 
 	if depth == 0 {
-		return quiescence(board, ply, alpha, beta, deadline, nodes)
+		return quiescence(board, ply, alpha, beta, deadline, nodes, stop)
 	}
 
 	childHistory := append(history[:len(history):len(history)], hash)
@@ -374,7 +385,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 
 		if isLateQuiet {
 			// Reduced, narrow-window probe first — just checking "is this move even worth alpha?"
-			score, ok = negaMax(newBoard, depth-2, ply+1, -alpha-1, -alpha, deadline, nodes, childHistory, true)
+			score, ok = negaMax(newBoard, depth-2, ply+1, -alpha-1, -alpha, deadline, nodes, childHistory, true, stop)
 			if !ok {
 				return 0, false
 			}
@@ -382,14 +393,14 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 
 			if score > alpha {
 				// Surprised us — re-search for real, at full depth and the real window.
-				score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
+				score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true, stop)
 				if !ok {
 					return 0, false
 				}
 				score = -score
 			}
 		} else {
-			score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
+			score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true, stop)
 			if !ok {
 				return 0, false
 			}

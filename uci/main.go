@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,69 +38,90 @@ func printInfo(result engine.SearchResult, pv []engine.Move) {
 }
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	board := engine.BoardState{}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
+	lines := make(chan string)
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			lines <- scanner.Text()
 		}
+		close(lines)
+	}()
 
-		command := fields[0]
+	board := engine.BoardState{}
+	resultCh := make(chan engine.SearchResult)
+	var stop *atomic.Bool
+	var searchBoard engine.BoardState // position the running search started from, for PV extraction
 
-		switch command {
-		case "uci":
-			fmt.Println("id name Kissengine")
-			fmt.Println("id author Nikita Simokhin")
-			fmt.Printf("option name Hash type spin default %d min 1 max 1024\n", engine.DefaultHashSizeMB)
-			fmt.Println("uciok")
-		case "isready":
-			fmt.Println("readyok")
-		case "setoption":
-			if len(fields) < 5 {
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				return
+			}
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
 				continue
 			}
-			if fields[1] == "name" && fields[2] == "Hash" && fields[3] == "value" {
-				sizeMB, err := strconv.Atoi(fields[4])
-				if err == nil {
-					engine.SetHashSizeMB(sizeMB)
+
+			command := fields[0]
+
+			switch command {
+			case "uci":
+				fmt.Println("id name Kissengine")
+				fmt.Println("id author Nikita Simokhin")
+				fmt.Printf("option name Hash type spin default %d min 1 max 1024\n", engine.DefaultHashSizeMB)
+				fmt.Println("uciok")
+			case "isready":
+				fmt.Println("readyok")
+			case "ucinewgame":
+				// Wipes everything the search accumulated across the previous game (TT,
+				// killer moves, history heuristic) so it can't bias move ordering in a new,
+				// unrelated game — relevant when one engine process plays several games in a row.
+				engine.ResetState()
+			case "setoption":
+				if len(fields) < 5 {
+					continue
 				}
-			}
-		case "position":
-			history = nil
-			if len(fields) < 2 {
-				continue
-			}
-			switch fields[1] {
-			case "startpos":
-				board = engine.ParseFEN(engine.StartFen)
-				history = append(history, engine.ComputeHash(board))
-			case "fen":
-				fen := strings.Join(fields[2:8], " ")
-				board = engine.ParseFEN(fen)
-				history = append(history, engine.ComputeHash(board))
-			}
+				if fields[1] == "name" && fields[2] == "Hash" && fields[3] == "value" {
+					sizeMB, err := strconv.Atoi(fields[4])
+					if err == nil {
+						engine.SetHashSizeMB(sizeMB)
+					}
+				}
+			case "position":
+				history = nil
+				if len(fields) < 2 {
+					continue
+				}
+				switch fields[1] {
+				case "startpos":
+					board = engine.ParseFEN(engine.StartFen)
+					history = append(history, engine.ComputeHash(board))
+				case "fen":
+					fen := strings.Join(fields[2:8], " ")
+					board = engine.ParseFEN(fen)
+					history = append(history, engine.ComputeHash(board))
+				}
 
-			for i, field := range fields {
-				if field == "moves" {
-					for _, moveStr := range fields[i+1:] {
-						move, ok := notation.ParseMove(moveStr, board)
-						if ok {
-							board = engine.MakeMove(board, move)
-							history = append(history, engine.ComputeHash(board))
+				for i, field := range fields {
+					if field == "moves" {
+						for _, moveStr := range fields[i+1:] {
+							move, ok := notation.ParseMove(moveStr, board)
+							if ok {
+								board = engine.MakeMove(board, move)
+								history = append(history, engine.ComputeHash(board))
+							}
 						}
 					}
 				}
-			}
-		case "go":
-			if len(fields) < 2 {
-				continue
-			}
-			switch fields[1] {
-			case "depth":
-				if len(fields) < 3 {
+			case "stop":
+				// If nothing is currently searching, stop has nothing to do — the flag only
+				// exists for the duration of one "go" call.
+				if stop != nil {
+					stop.Store(true)
+				}
+			case "go":
+				if len(fields) < 2 {
 					continue
 				}
 
@@ -108,67 +130,70 @@ func main() {
 					continue
 				}
 
-				depth, _ := strconv.Atoi(fields[2])
-				result := engine.FindBestMove(board, depth, history)
-				pv := engine.ExtractPV(board, result.Depth)
-				board = engine.MakeMove(board, result.Move)
-				history = append(history, engine.ComputeHash(board))
-				printInfo(result, pv)
-				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
-			case "movetime":
-				if len(fields) < 3 {
-					continue
-				}
-
-				if len(engine.GenerateLegalMoves(board)) == 0 {
-					fmt.Println("bestmove 0000")
-					continue
-				}
-
-				ms, _ := strconv.Atoi(fields[2])
-				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond, history, false)
-				pv := engine.ExtractPV(board, result.Depth)
-				board = engine.MakeMove(board, result.Move)
-				history = append(history, engine.ComputeHash(board))
-				printInfo(result, pv)
-				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
-			case "wtime":
-				if len(engine.GenerateLegalMoves(board)) == 0 {
-					fmt.Println("bestmove 0000")
-					continue
-				}
-
-				var wtime, btime, winc, binc int
-				for i := 1; i+1 < len(fields); i += 2 {
-					value, _ := strconv.Atoi(fields[i+1])
-					switch fields[i] {
-					case "wtime":
-						wtime = value
-					case "btime":
-						btime = value
-					case "winc":
-						winc = value
-					case "binc":
-						binc = value
+				switch fields[1] {
+				case "depth":
+					if len(fields) < 3 {
+						continue
 					}
+
+					depth, _ := strconv.Atoi(fields[2])
+					result := engine.FindBestMove(board, depth, history)
+					pv := engine.ExtractPV(board, result.Depth)
+					board = engine.MakeMove(board, result.Move)
+					history = append(history, engine.ComputeHash(board))
+					printInfo(result, pv)
+					fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
+				case "movetime":
+					if len(fields) < 3 {
+						continue
+					}
+
+					ms, _ := strconv.Atoi(fields[2])
+					stop = &atomic.Bool{}
+					searchBoard = board
+					go func(b engine.BoardState, d time.Duration, h []engine.ZobristHash, s *atomic.Bool) {
+						resultCh <- engine.FindBestMoveByTime(b, d, h, false, s)
+					}(board, time.Duration(ms)*time.Millisecond, history, stop)
+				case "wtime":
+					var wtime, btime, winc, binc int
+					for i := 1; i+1 < len(fields); i += 2 {
+						value, _ := strconv.Atoi(fields[i+1])
+						switch fields[i] {
+						case "wtime":
+							wtime = value
+						case "btime":
+							btime = value
+						case "winc":
+							winc = value
+						case "binc":
+							binc = value
+						}
+					}
+
+					myTime, myInc := wtime, winc
+					if board.SideToMove().Color() == engine.Black {
+						myTime, myInc = btime, binc
+					}
+
+					allocated := min(myTime/30+myInc, myTime/2)
+
+					stop = &atomic.Bool{}
+					searchBoard = board
+					go func(b engine.BoardState, d time.Duration, h []engine.ZobristHash, s *atomic.Bool) {
+						resultCh <- engine.FindBestMoveByTime(b, d, h, true, s)
+					}(board, time.Duration(allocated)*time.Millisecond, history, stop)
 				}
-
-				myTime, myInc := wtime, winc
-				if board.SideToMove().Color() == engine.Black {
-					myTime, myInc = btime, binc
-				}
-
-				allocated := min(myTime/30+myInc, myTime/2)
-
-				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond, history, true)
-				pv := engine.ExtractPV(board, result.Depth)
-				board = engine.MakeMove(board, result.Move)
-				history = append(history, engine.ComputeHash(board))
-				printInfo(result, pv)
-				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
+			case "quit":
+				return
 			}
-		case "quit":
-			return
+
+		case result := <-resultCh:
+			pv := engine.ExtractPV(searchBoard, result.Depth)
+			board = engine.MakeMove(board, result.Move)
+			history = append(history, engine.ComputeHash(board))
+			printInfo(result, pv)
+			fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
+			stop = nil
 		}
 	}
 }

@@ -44,6 +44,16 @@ func SetHashSizeMB(sizeMB int) {
 	tableMask = ZobristHash(size - 1)
 }
 
+// ResetState clears everything the search accumulates across a game (transposition
+// table, killer moves, history heuristic) — meant to be called on "ucinewgame" so a
+// long-lived engine process doesn't carry stale bias from a previous, unrelated game
+// into the next one.
+func ResetState() {
+	clear(transpositionalTable)
+	killerMoves = [128][2]Move{}
+	historyHeuristic = [128][128]int{}
+}
+
 var piecesOnBoardKeys [15][128]uint64
 var sideToMoveKey uint64
 var castleRightsKeys [4]uint64

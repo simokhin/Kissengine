@@ -52,7 +52,7 @@ func (g *Game) applyMove(move engine.Move) {
 		g.engineResult = make(chan engine.SearchResult, 1)
 		board := g.board
 		go func() {
-			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond, nil, false)
+			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond, nil, false, nil)
 		}()
 	}
 }
@@ -175,7 +175,7 @@ func (g *Game) Update() error {
 
 			switch len(candidateMoves) {
 			case 0:
-				// клик мимо легального хода — просто снимаем выбор ниже
+				// click missed every legal target — selection is cleared below
 			case 1:
 				g.applyMove(candidateMoves[0])
 			default:
