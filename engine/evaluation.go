@@ -12,11 +12,12 @@ var pieceValues = [7]Evaluation{
 }
 
 const (
-	bishopPairBonus     Evaluation = 30
-	doubledPawnPenalty  Evaluation = 15
-	isolatedPawnPenalty Evaluation = 15
-	openFileBonus       Evaluation = 20
-	semiOpenFileBonus   Evaluation = 10
+	bishopPairBonus          Evaluation = 30
+	doubledPawnPenalty       Evaluation = 15
+	isolatedPawnPenalty      Evaluation = 15
+	openFileBonus            Evaluation = 20
+	semiOpenFileBonus        Evaluation = 10
+	missingShieldPawnPenalty Evaluation = 10
 )
 
 var passedPawnBonus = [8]Evaluation{0, 5, 10, 20, 35, 60, 100, 0}
@@ -30,6 +31,25 @@ func aheadMask(rank int, color Piece) uint8 {
 		return uint8(0xFF) << (rank + 1)
 	}
 	return uint8(0xFF) >> (8 - rank)
+}
+
+// kingShieldPenalty checks the king's own file and the two adjacent files for a friendly
+// pawn somewhere ahead of the king (using the same "ahead" notion as passed pawns) — one
+// missing shield file adds a fixed penalty.
+func kingShieldPenalty(kingSquare Square, color Piece, ownRanks [8]uint8) Evaluation {
+	file, rank := SquareIndexToFileRank(kingSquare)
+	mask := aheadMask(rank, color)
+
+	var penalty Evaluation
+	for _, f := range [3]int{file - 1, file, file + 1} {
+		if f < 0 || f > 7 {
+			continue
+		}
+		if ownRanks[f]&mask == 0 {
+			penalty += missingShieldPawnPenalty
+		}
+	}
+	return penalty
 }
 
 func Evaluate(board BoardState) Evaluation {
@@ -158,6 +178,17 @@ func Evaluate(board BoardState) Evaluation {
 		} else {
 			evaluation -= bonus
 		}
+	}
+
+	whiteShieldPenalty := Evaluation(phase * float64(kingShieldPenalty(board.whiteKingSquare, White, whitePawnRanks)))
+	blackShieldPenalty := Evaluation(phase * float64(kingShieldPenalty(board.blackKingSquare, Black, blackPawnRanks)))
+
+	if board.SideToMove().Color() == White {
+		evaluation -= whiteShieldPenalty
+		evaluation += blackShieldPenalty
+	} else {
+		evaluation -= blackShieldPenalty
+		evaluation += whiteShieldPenalty
 	}
 
 	if whiteBishops >= 2 {

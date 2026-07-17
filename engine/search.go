@@ -329,13 +329,37 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 
 	childHistory := append(history[:len(history):len(history)], hash)
 
-	for _, move := range moves {
+	for i, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
-		if !ok {
-			return 0, false
+
+		var score Evaluation
+		var ok bool
+
+		isLateQuiet := i >= 4 && move.CapturedPiece() == Empty && move.Promotion() == Empty && depth >= 3 && !newBoard.InCheck()
+
+		if isLateQuiet {
+			// Reduced, narrow-window probe first — just checking "is this move even worth alpha?"
+			score, ok = negaMax(newBoard, depth-2, ply+1, -alpha-1, -alpha, deadline, nodes, childHistory, true)
+			if !ok {
+				return 0, false
+			}
+			score = -score
+
+			if score > alpha {
+				// Surprised us — re-search for real, at full depth and the real window.
+				score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
+				if !ok {
+					return 0, false
+				}
+				score = -score
+			}
+		} else {
+			score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
+			if !ok {
+				return 0, false
+			}
+			score = -score
 		}
-		score = -score
 
 		if score >= beta {
 			if move.CapturedPiece() == Empty {
