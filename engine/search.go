@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"slices"
 	"sort"
 	"time"
 )
@@ -35,10 +36,10 @@ func orderMoves(board BoardState, moves []Move, ttMove Move) []Move {
 	return moves
 }
 
-func FindBestMove(board BoardState, depth int) SearchResult {
+func FindBestMove(board BoardState, depth int, history []ZobristHash) SearchResult {
 	var searchResult SearchResult
 	var nodes int
-	move, _ := findBestMove(board, depth, time.Time{}, &nodes)
+	move, _ := findBestMove(board, depth, time.Time{}, &nodes, history)
 
 	searchResult.Move = move
 	searchResult.Depth = depth
@@ -47,7 +48,7 @@ func FindBestMove(board BoardState, depth int) SearchResult {
 	return searchResult
 }
 
-func FindBestMoveByTime(board BoardState, timeLimit time.Duration) SearchResult {
+func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []ZobristHash) SearchResult {
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
 	var bestDepth int
@@ -57,7 +58,7 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration) SearchResult 
 		if time.Now().After(deadline) {
 			break
 		}
-		move, ok := findBestMove(board, depth, deadline, &nodes)
+		move, ok := findBestMove(board, depth, deadline, &nodes, history)
 		if !ok {
 			break
 		}
@@ -68,7 +69,7 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration) SearchResult 
 	return SearchResult{Move: bestMove, Depth: bestDepth, Nodes: nodes}
 }
 
-func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int) (Move, bool) {
+func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, history []ZobristHash) (Move, bool) {
 	var bestMove Move
 	var ply int
 
@@ -79,7 +80,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int) (
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history)
 		if !ok {
 			return bestMove, false
 		}
@@ -195,11 +196,16 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 	return alpha, true
 }
 
-func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int) (Evaluation, bool) {
+func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, history []ZobristHash) (Evaluation, bool) {
 	*nodes++
 
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
+	}
+
+	hash := ComputeHash(board)
+	if slices.Contains(history, hash) {
+		return 0, true
 	}
 
 	if depth == 0 && !board.InCheck() {
@@ -208,7 +214,6 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 
 	var bestMove Move
 
-	hash := ComputeHash(board)
 	entry, found := Probe(hash)
 	adjustedEval := entry.evaluation
 	if adjustedEval > MateThreshold {
@@ -250,9 +255,11 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		return quiescence(board, ply, alpha, beta, deadline, nodes)
 	}
 
+	childHistory := append(history[:len(history):len(history)], hash)
+
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory)
 		if !ok {
 			return 0, false
 		}

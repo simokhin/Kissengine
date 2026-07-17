@@ -52,7 +52,7 @@ func (g *Game) applyMove(move engine.Move) {
 		g.engineResult = make(chan engine.SearchResult, 1)
 		board := g.board
 		go func() {
-			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond)
+			g.engineResult <- engine.FindBestMoveByTime(board, time.Duration(moveTime)*time.Millisecond, nil)
 		}()
 	}
 }

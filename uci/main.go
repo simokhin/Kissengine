@@ -75,7 +75,7 @@ func main() {
 				}
 
 				depth, _ := strconv.Atoi(fields[2])
-				result := engine.FindBestMove(board, depth)
+				result := engine.FindBestMove(board, depth, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
 				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)
@@ -91,7 +91,7 @@ func main() {
 				}
 
 				ms, _ := strconv.Atoi(fields[2])
-				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond)
+				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
 				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)
@@ -124,7 +124,7 @@ func main() {
 
 				allocated := min(myTime/30+myInc, myTime/2)
 
-				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond)
+				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
 				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)

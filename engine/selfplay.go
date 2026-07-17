@@ -36,7 +36,7 @@ func PlayGame(board BoardState) Result {
 			return Draw
 		}
 
-		result := FindBestMove(board, 4)
+		result := FindBestMove(board, 4, nil)
 		board = MakeMove(board, result.Move)
 	}
 }
