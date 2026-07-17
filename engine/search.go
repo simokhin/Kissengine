@@ -72,13 +72,61 @@ func findBestMove(board BoardState, depth int, deadline time.Time) (Move, bool) 
 	return bestMove, true
 }
 
+func quiescence(board BoardState, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
+	if !deadline.IsZero() && time.Now().After(deadline) {
+		return 0, false
+	}
+
+	inCheck := board.InCheck()
+	var moves []Move
+
+	if inCheck {
+		moves = GenerateLegalMoves(board)
+	} else {
+		standPat := Evaluate(board)
+		if standPat >= beta {
+			return beta, true
+		}
+		if standPat > alpha {
+			alpha = standPat
+		}
+		for _, m := range GenerateLegalMoves(board) {
+			if m.CapturedPiece() != Empty {
+				moves = append(moves, m)
+			}
+		}
+	}
+	orderMoves(board, moves)
+
+	if inCheck && len(moves) == 0 {
+		return -Mate, true
+	}
+
+	for _, move := range moves {
+		newBoard := MakeMove(board, move)
+		score, ok := quiescence(newBoard, -beta, -alpha, deadline)
+		if !ok {
+			return 0, false
+		}
+		score = -score
+
+		if score >= beta {
+			return beta, true
+		}
+		if score > alpha {
+			alpha = score
+		}
+	}
+	return alpha, true
+}
+
 func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.Time) (Evaluation, bool) {
 	if !deadline.IsZero() && time.Now().After(deadline) {
 		return 0, false
 	}
 
 	if depth == 0 && !board.InCheck() {
-		return Evaluate(board), true
+		return quiescence(board, alpha, beta, deadline)
 	}
 
 	moves := GenerateLegalMoves(board)
@@ -92,7 +140,7 @@ func negaMax(board BoardState, depth int, alpha, beta Evaluation, deadline time.
 	}
 
 	if depth == 0 {
-		return Evaluate(board), true
+		return quiescence(board, alpha, beta, deadline)
 	}
 
 	for _, move := range moves {

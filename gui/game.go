@@ -63,7 +63,7 @@ const (
 	screenHeight = squareSize * 8
 
 	searchDepth = 5
-	moveTime    = 500
+	moveTime    = 1000
 )
 
 var (
