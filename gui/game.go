@@ -2,7 +2,6 @@ package main
 
 import (
 	"MyChessEngine/engine"
-	"fmt"
 	"image/color"
 	"time"
 
@@ -163,8 +162,6 @@ func (g *Game) Update() error {
 				g.hasSelected = true
 				g.legalMoves = movesFromClicked
 			}
-			fmt.Println(g.selected)
-			fmt.Println(len(movesFromClicked))
 		} else {
 			var candidateMoves []engine.Move
 			for _, m := range g.legalMoves {

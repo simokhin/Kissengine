@@ -1,0 +1,5 @@
+/MyChessEngine
+/kissengine
+*.test
+match_result.json
+.claude/
