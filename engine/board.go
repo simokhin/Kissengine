@@ -241,3 +241,117 @@ func (b BoardState) IsSquareAttacked(square Square, attackerColor Piece) bool {
 
 	return false
 }
+
+// AttackersOf returns the piece types of every attackerColor piece attacking square.
+// Unlike IsSquareAttacked, it does not stop at the first attacker found — it's meant
+// for SEE, which needs to know every attacker's value, not just whether one exists.
+func (b BoardState) AttackersOf(square Square, attackerColor Piece) []Piece {
+	attackerColor &= Black
+	var attackers []Piece
+
+	// By King
+	for i := range KingOffsets {
+		candidateSquare := square + KingOffsets[i]
+
+		if !candidateSquare.IsOnBoard() {
+			continue
+		} else {
+			if b.squares[candidateSquare] == attackerColor|King {
+				attackers = append(attackers, King)
+			}
+		}
+	}
+
+	// By Knight
+	for i := range KnightOffsets {
+		candidateSquare := square + KnightOffsets[i]
+
+		if !candidateSquare.IsOnBoard() {
+			continue
+		} else {
+			if b.squares[candidateSquare] == attackerColor|Knight {
+				attackers = append(attackers, Knight)
+			}
+		}
+	}
+
+	// By Bishop or Queen
+	for i := range BishopOffsets {
+		candidateSquare := square
+
+		for {
+			candidateSquare += BishopOffsets[i]
+
+			if !candidateSquare.IsOnBoard() {
+				break
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != Empty {
+					pieceColor := piece & Black
+					if pieceColor != attackerColor {
+						break
+					} else {
+						if piece.Type() == Bishop || piece.Type() == Queen {
+							attackers = append(attackers, piece.Type())
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// By Rook or Queen
+	for i := range RookOffsets {
+		candidateSquare := square
+
+		for {
+			candidateSquare += RookOffsets[i]
+
+			if !candidateSquare.IsOnBoard() {
+				break
+			} else {
+				piece := b.squares[candidateSquare]
+				if piece != Empty {
+					pieceColor := piece & Black
+					if pieceColor != attackerColor {
+						break
+					} else {
+						if piece.Type() == Rook || piece.Type() == Queen {
+							attackers = append(attackers, piece.Type())
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// By Pawn
+	switch attackerColor {
+	case White:
+		for i := range WhitePawnAttackOffsets {
+			candidateSquare := square + WhitePawnAttackOffsets[i]
+			if !candidateSquare.IsOnBoard() {
+				continue
+			} else {
+				if b.squares[candidateSquare] == attackerColor|Pawn {
+					attackers = append(attackers, Pawn)
+				}
+			}
+		}
+	case Black:
+		for i := range BlackPawnAttackOffsets {
+			candidateSquare := square + BlackPawnAttackOffsets[i]
+			if !candidateSquare.IsOnBoard() {
+				continue
+			} else {
+				if b.squares[candidateSquare] == attackerColor|Pawn {
+					attackers = append(attackers, Pawn)
+				}
+			}
+		}
+	}
+
+	return attackers
+}

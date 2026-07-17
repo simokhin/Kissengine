@@ -169,7 +169,11 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 			alpha = standPat
 		}
 		for _, m := range GenerateLegalMoves(board) {
-			if m.CapturedPiece() != Empty || m.Promotion() != Empty {
+			if m.Promotion() != Empty {
+				moves = append(moves, m)
+				continue
+			}
+			if m.CapturedPiece() != Empty && SEE(board, m) >= 0 {
 				moves = append(moves, m)
 			}
 		}
