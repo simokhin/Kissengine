@@ -201,7 +201,7 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 	orderMoves(board, moves, entry.bestMove, Move(0), Move(0))
 
 	if inCheck && len(moves) == 0 {
-		return -Mate, true
+		return -(Mate - Evaluation(ply)), true
 	}
 
 	alphaOrig := alpha
