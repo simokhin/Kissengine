@@ -86,6 +86,37 @@ func main() {
 				bestMove := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond)
 				board = engine.MakeMove(board, bestMove)
 				fmt.Println("bestmove " + notation.MoveToUCI(bestMove))
+			case "wtime":
+				if len(engine.GenerateLegalMoves(board)) == 0 {
+					fmt.Println("bestmove 0000")
+					continue
+				}
+
+				var wtime, btime, winc, binc int
+				for i := 1; i+1 < len(fields); i += 2 {
+					value, _ := strconv.Atoi(fields[i+1])
+					switch fields[i] {
+					case "wtime":
+						wtime = value
+					case "btime":
+						btime = value
+					case "winc":
+						winc = value
+					case "binc":
+						binc = value
+					}
+				}
+
+				myTime, myInc := wtime, winc
+				if board.SideToMove().Color() == engine.Black {
+					myTime, myInc = btime, binc
+				}
+
+				allocated := min(myTime/30+myInc, myTime/2)
+
+				bestMove := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond)
+				board = engine.MakeMove(board, bestMove)
+				fmt.Println("bestmove " + notation.MoveToUCI(bestMove))
 			}
 		case "quit":
 			return
