@@ -10,6 +10,7 @@ type SearchResult struct {
 	Move  Move
 	Nodes int
 	Depth int
+	Score Evaluation
 }
 
 const (
@@ -61,11 +62,12 @@ func orderMoves(board BoardState, moves []Move, ttMove Move, killer1, killer2 Mo
 func FindBestMove(board BoardState, depth int, history []ZobristHash) SearchResult {
 	var searchResult SearchResult
 	var nodes int
-	move, _ := findBestMove(board, depth, time.Time{}, &nodes, history)
+	move, score, _ := findBestMove(board, depth, time.Time{}, &nodes, history)
 
 	searchResult.Move = move
 	searchResult.Depth = depth
 	searchResult.Nodes = nodes
+	searchResult.Score = score
 
 	return searchResult
 }
@@ -74,24 +76,26 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 	deadline := time.Now().Add(timeLimit)
 	var bestMove Move
 	var bestDepth int
+	var bestScore Evaluation
 	var nodes int
 
 	for depth := 1; ; depth++ {
 		if time.Now().After(deadline) {
 			break
 		}
-		move, ok := findBestMove(board, depth, deadline, &nodes, history)
+		move, score, ok := findBestMove(board, depth, deadline, &nodes, history)
 		if !ok {
 			break
 		}
 		bestMove = move
 		bestDepth = depth
+		bestScore = score
 	}
 
-	return SearchResult{Move: bestMove, Depth: bestDepth, Nodes: nodes}
+	return SearchResult{Move: bestMove, Depth: bestDepth, Nodes: nodes, Score: bestScore}
 }
 
-func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, history []ZobristHash) (Move, bool) {
+func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, history []ZobristHash) (Move, Evaluation, bool) {
 	var bestMove Move
 	var ply int
 
@@ -104,7 +108,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 		newBoard := MakeMove(board, move)
 		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history, true)
 		if !ok {
-			return bestMove, false
+			return bestMove, best, false
 		}
 		moveEvaluation := -score
 		if moveEvaluation > best {
@@ -113,7 +117,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 		}
 	}
 
-	return bestMove, true
+	return bestMove, best, true
 }
 
 func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int) (Evaluation, bool) {
@@ -165,7 +169,7 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 			alpha = standPat
 		}
 		for _, m := range GenerateLegalMoves(board) {
-			if m.CapturedPiece() != Empty {
+			if m.CapturedPiece() != Empty || m.Promotion() != Empty {
 				moves = append(moves, m)
 			}
 		}

@@ -13,6 +13,21 @@ import (
 
 var history []engine.ZobristHash
 
+func printInfo(result engine.SearchResult) {
+	switch {
+	case result.Score > engine.MateThreshold:
+		pliesToMate := engine.Mate - result.Score
+		movesToMate := (pliesToMate + 1) / 2
+		fmt.Printf("info depth %d nodes %d score mate %d\n", result.Depth, result.Nodes, movesToMate)
+	case result.Score < -engine.MateThreshold:
+		pliesToMate := engine.Mate + result.Score
+		movesToMate := (pliesToMate + 1) / 2
+		fmt.Printf("info depth %d nodes %d score mate -%d\n", result.Depth, result.Nodes, movesToMate)
+	default:
+		fmt.Printf("info depth %d nodes %d score cp %d\n", result.Depth, result.Nodes, result.Score)
+	}
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	board := engine.BoardState{}
@@ -89,7 +104,7 @@ func main() {
 				result := engine.FindBestMove(board, depth, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)
+				printInfo(result)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			case "movetime":
 				if len(fields) < 3 {
@@ -105,7 +120,7 @@ func main() {
 				result := engine.FindBestMoveByTime(board, time.Duration(ms)*time.Millisecond, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)
+				printInfo(result)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			case "wtime":
 				if len(engine.GenerateLegalMoves(board)) == 0 {
@@ -138,7 +153,7 @@ func main() {
 				result := engine.FindBestMoveByTime(board, time.Duration(allocated)*time.Millisecond, history)
 				board = engine.MakeMove(board, result.Move)
 				history = append(history, engine.ComputeHash(board))
-				fmt.Printf("info depth %d nodes %d\n", result.Depth, result.Nodes)
+				printInfo(result)
 				fmt.Println("bestmove " + notation.MoveToUCI(result.Move))
 			}
 		case "quit":
