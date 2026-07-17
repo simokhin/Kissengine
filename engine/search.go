@@ -78,12 +78,32 @@ func FindBestMoveByTime(board BoardState, timeLimit time.Duration, history []Zob
 	var bestDepth int
 	var bestScore Evaluation
 	var nodes int
+	var lastDuration, prevDuration time.Duration
 
 	for depth := 1; ; depth++ {
-		if time.Now().After(deadline) {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
 			break
 		}
+
+		// Predict the next iteration's duration from how much the previous one grew
+		// relative to the one before it — depth-to-depth growth varies a lot in this
+		// engine (null-move/LMR make it uneven), so a fixed multiplier isn't reliable,
+		// but the actual observed growth rate is a decent estimate. If that predicted
+		// duration doesn't fit in what's left, stop now instead of burning the rest of
+		// the budget on an iteration that's virtually guaranteed not to finish.
+		if lastDuration > 0 && prevDuration > 0 {
+			growth := float64(lastDuration) / float64(prevDuration)
+			predicted := time.Duration(float64(lastDuration) * growth)
+			if predicted > remaining {
+				break
+			}
+		}
+
+		iterationStart := time.Now()
 		move, score, ok := findBestMove(board, depth, deadline, &nodes, history)
+		prevDuration = lastDuration
+		lastDuration = time.Since(iterationStart)
 		if !ok {
 			break
 		}
