@@ -30,9 +30,20 @@ func main() {
 		case "uci":
 			fmt.Println("id name Kissengine")
 			fmt.Println("id author Nikita Simokhin")
+			fmt.Printf("option name Hash type spin default %d min 1 max 1024\n", engine.DefaultHashSizeMB)
 			fmt.Println("uciok")
 		case "isready":
 			fmt.Println("readyok")
+		case "setoption":
+			if len(fields) < 5 {
+				continue
+			}
+			if fields[1] == "name" && fields[2] == "Hash" && fields[3] == "value" {
+				sizeMB, err := strconv.Atoi(fields[4])
+				if err == nil {
+					engine.SetHashSizeMB(sizeMB)
+				}
+			}
 		case "position":
 			history = nil
 			if len(fields) < 2 {

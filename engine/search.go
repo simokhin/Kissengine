@@ -102,7 +102,7 @@ func findBestMove(board BoardState, depth int, deadline time.Time, nodes *int, h
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -Infinity, -best, deadline, nodes, history, true)
 		if !ok {
 			return bestMove, false
 		}
@@ -218,7 +218,19 @@ func quiescence(board BoardState, ply int, alpha, beta Evaluation, deadline time
 	return alpha, true
 }
 
-func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, history []ZobristHash) (Evaluation, bool) {
+func hasNonPawnMaterial(board BoardState, color Piece) bool {
+	for _, piece := range board.squares {
+		if piece == Empty {
+			continue
+		}
+		if piece.Color() == color && piece.Type() != Pawn && piece.Type() != King {
+			return true
+		}
+	}
+	return false
+}
+
+func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadline time.Time, nodes *int, history []ZobristHash, allowNull bool) (Evaluation, bool) {
 	*nodes++
 
 	if !deadline.IsZero() && time.Now().After(deadline) {
@@ -261,6 +273,40 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		}
 	}
 
+	if allowNull && depth >= 3 && !board.InCheck() && hasNonPawnMaterial(board, board.sideToMove.Color()) {
+		nullBoard := board
+		if nullBoard.sideToMove == WhiteToMove {
+			nullBoard.sideToMove = BlackToMove
+		} else {
+			nullBoard.sideToMove = WhiteToMove
+		}
+		nullBoard.enPassantSquare = NoSquare
+
+		R := 2
+		if depth >= 6 {
+			R = 3
+		}
+		score, ok := negaMax(nullBoard, depth-1-R, ply+1, -beta, -beta+1, deadline, nodes, history, false)
+		if !ok {
+			return 0, false
+		}
+		score = -score
+		if score >= beta {
+			// The null-move result alone is not trustworthy enough on its own — verify it with a
+			// real (non-null), reduced-depth search of the actual position before relying on it.
+			// Without this, unverified null-move cutoffs occasionally hide a zugzwang-like error
+			// that the shallow null search missed, causing wildly inconsistent node counts between
+			// neighboring depths.
+			verifyScore, ok := negaMax(board, depth-R, ply, alpha, beta, deadline, nodes, history, false)
+			if !ok {
+				return 0, false
+			}
+			if verifyScore >= beta {
+				return beta, true
+			}
+		}
+	}
+
 	moves := GenerateLegalMoves(board)
 	orderMoves(board, moves, entry.bestMove, killerMoves[ply][0], killerMoves[ply][1])
 
@@ -281,7 +327,7 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 
 	for _, move := range moves {
 		newBoard := MakeMove(board, move)
-		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory)
+		score, ok := negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true)
 		if !ok {
 			return 0, false
 		}

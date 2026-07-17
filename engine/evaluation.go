@@ -9,16 +9,27 @@ var pieceValues = [7]Evaluation{
 	King:   0,
 }
 
+const bishopPairBonus Evaluation = 30
+
 type Evaluation int
 
 func Evaluate(board BoardState) Evaluation {
 	var evaluation Evaluation
 	phase := gamePhase(board)
+	var whiteBishops, blackBishops int
 
 	for i := range board.squares {
 		piece := board.squares[i]
 		if piece == Empty {
 			continue
+		}
+
+		if piece.Type() == Bishop {
+			if piece.Color() == White {
+				whiteBishops++
+			} else {
+				blackBishops++
+			}
 		}
 
 		var positional Evaluation
@@ -34,6 +45,21 @@ func Evaluate(board BoardState) Evaluation {
 			evaluation += pieceValues[piece.Type()] + positional
 		} else {
 			evaluation -= pieceValues[piece.Type()] + positional
+		}
+	}
+
+	if whiteBishops >= 2 {
+		if board.SideToMove().Color() == White {
+			evaluation += bishopPairBonus
+		} else {
+			evaluation -= bishopPairBonus
+		}
+	}
+	if blackBishops >= 2 {
+		if board.SideToMove().Color() == Black {
+			evaluation += bishopPairBonus
+		} else {
+			evaluation -= bishopPairBonus
 		}
 	}
 

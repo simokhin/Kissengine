@@ -1,6 +1,9 @@
 package engine
 
-import "math/rand"
+import (
+	"math/rand"
+	"unsafe"
+)
 
 type ZobristHash uint64
 
@@ -20,7 +23,26 @@ const (
 	UpperBound
 )
 
-var transpositionalTable [1 << 20]TableEntry
+const DefaultHashSizeMB = 64
+
+var transpositionalTable []TableEntry
+var tableMask ZobristHash
+
+// SetHashSizeMB (re)allocates the transposition table for roughly sizeMB megabytes.
+// The actual entry count is rounded down to the nearest power of two so the index
+// mask (size-1) trick works instead of a slower modulo.
+func SetHashSizeMB(sizeMB int) {
+	entrySize := int(unsafe.Sizeof(TableEntry{}))
+	numEntries := sizeMB * 1024 * 1024 / entrySize
+
+	size := 1
+	for size*2 <= numEntries {
+		size *= 2
+	}
+
+	transpositionalTable = make([]TableEntry, size)
+	tableMask = ZobristHash(size - 1)
+}
 
 var piecesOnBoardKeys [15][128]uint64
 var sideToMoveKey uint64
@@ -29,14 +51,14 @@ var castleRightsFlags = [4]CastleRights{WhiteKingSide, WhiteQueenSide, BlackKing
 var enPassantFileKeys [8]uint64
 
 func Store(entry TableEntry) {
-	index := entry.zobristHash & (1<<20 - 1)
+	index := entry.zobristHash & tableMask
 	transpositionalTable[index] = entry
 }
 
 func Probe(hash ZobristHash) (TableEntry, bool) {
 	var tableEntry TableEntry
 
-	index := hash & (1<<20 - 1)
+	index := hash & tableMask
 	tableEntry = transpositionalTable[index]
 
 	if tableEntry.zobristHash == hash {
@@ -76,6 +98,8 @@ func ComputeHash(board BoardState) ZobristHash {
 }
 
 func init() {
+	SetHashSizeMB(DefaultHashSizeMB)
+
 	sideToMoveKey = rand.Uint64()
 
 	for piece := range piecesOnBoardKeys {
