@@ -33,6 +33,7 @@ func ParseFEN(fen string) BoardState {
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = Queen | Black
 				case "k":
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = King | Black
+					board.blackKingSquare = FileRankToSquareIndex(currentFile, currentRank)
 				case "p":
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = Pawn | Black
 				case "R":
@@ -45,6 +46,7 @@ func ParseFEN(fen string) BoardState {
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = Queen | White
 				case "K":
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = King | White
+					board.whiteKingSquare = FileRankToSquareIndex(currentFile, currentRank)
 				case "P":
 					board.squares[FileRankToSquareIndex(currentFile, currentRank)] = Pawn | White
 				}

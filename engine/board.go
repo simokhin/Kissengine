@@ -7,6 +7,8 @@ type BoardState struct {
 	enPassantSquare     Square
 	fiftyMovesRuleCount int
 	movesCount          int
+	whiteKingSquare     Square
+	blackKingSquare     Square
 }
 
 type SideToMove int
@@ -77,20 +79,17 @@ func (s SideToMove) Color() Piece {
 func (b BoardState) InCheck() bool {
 	sideColor := b.SideToMove().Color()
 	var opponentColor Piece
+	var kingSquare Square
 
 	if sideColor == White {
 		opponentColor = Black
+		kingSquare = b.whiteKingSquare
 	} else {
 		opponentColor = White
+		kingSquare = b.blackKingSquare
 	}
 
-	for i := range b.squares {
-		if b.squares[i] == sideColor|King {
-			return b.IsSquareAttacked(Square(i), opponentColor)
-		}
-	}
-
-	return false
+	return b.IsSquareAttacked(kingSquare, opponentColor)
 }
 
 func SquareIndexToFileRank(index Square) (file, rank int) {

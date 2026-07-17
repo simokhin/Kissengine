@@ -1,11 +1,10 @@
 package engine
 
-import "slices"
-
 var KingOffsets = [8]Square{-1, +1, -15, +15, -16, +16, -17, +17}
 var KnightOffsets = [8]Square{-14, +14, -18, +18, -31, +31, -33, +33}
 var BishopOffsets = [4]Square{+15, -15, +17, -17}
 var RookOffsets = [4]Square{+1, -1, +16, -16}
+var QueenOffsets = [8]Square{+15, -15, +17, -17, +1, -1, +16, -16}
 var WhitePawnOffsets = [4]Square{+16, +32, +15, +17}
 var BlackPawnOffsets = [4]Square{-16, -32, -15, -17}
 var WhitePawnAttackOffsets = [2]Square{-15, -17}
@@ -17,7 +16,7 @@ var piecesToPromote = [4]Piece{
 
 func GenerateLegalMoves(board BoardState) []Move {
 	pseudoLegalMoves := GenerateAllPseudoLegalMoves(board)
-	var legalMoves []Move
+	legalMoves := make([]Move, 0, len(pseudoLegalMoves))
 
 	sideColor := board.sideToMove.Color()
 	var opponentColor Piece
@@ -30,13 +29,15 @@ func GenerateLegalMoves(board BoardState) []Move {
 	for i := range pseudoLegalMoves {
 		newBoard := MakeMove(board, pseudoLegalMoves[i])
 
-		for j := range newBoard.squares {
-			piece := newBoard.squares[j]
-			if piece == sideColor|King {
-				if !newBoard.IsSquareAttacked(Square(j), opponentColor) {
-					legalMoves = append(legalMoves, pseudoLegalMoves[i])
-				}
-			}
+		var kingSquare Square
+		if sideColor == White {
+			kingSquare = newBoard.whiteKingSquare
+		} else {
+			kingSquare = newBoard.blackKingSquare
+		}
+
+		if !newBoard.IsSquareAttacked(kingSquare, opponentColor) {
+			legalMoves = append(legalMoves, pseudoLegalMoves[i])
 		}
 	}
 
@@ -44,7 +45,7 @@ func GenerateLegalMoves(board BoardState) []Move {
 }
 
 func GenerateAllPseudoLegalMoves(board BoardState) []Move {
-	var moves []Move
+	moves := make([]Move, 0, 48)
 	sideColor := board.sideToMove.Color()
 
 	for i := range board.squares {
@@ -56,25 +57,18 @@ func GenerateAllPseudoLegalMoves(board BoardState) []Move {
 			piece := board.squares[i]
 			switch piece {
 			case sideColor | King:
-				kingMoves := GenerateJumpingPieceMoves(square, board, sideColor|King)
-				moves = append(moves, kingMoves...)
-				castlingMoves := GenerateCastlingMoves(board)
-				moves = append(moves, castlingMoves...)
+				moves = GenerateJumpingPieceMoves(square, board, sideColor|King, moves)
+				moves = GenerateCastlingMoves(board, moves)
 			case sideColor | Knight:
-				knightMoves := GenerateJumpingPieceMoves(square, board, sideColor|Knight)
-				moves = append(moves, knightMoves...)
+				moves = GenerateJumpingPieceMoves(square, board, sideColor|Knight, moves)
 			case sideColor | Bishop:
-				bishopMoves := GenerateSlidingPieceMoves(square, board, sideColor|Bishop)
-				moves = append(moves, bishopMoves...)
+				moves = GenerateSlidingPieceMoves(square, board, sideColor|Bishop, moves)
 			case sideColor | Rook:
-				rookMoves := GenerateSlidingPieceMoves(square, board, sideColor|Rook)
-				moves = append(moves, rookMoves...)
+				moves = GenerateSlidingPieceMoves(square, board, sideColor|Rook, moves)
 			case sideColor | Queen:
-				queenMoves := GenerateSlidingPieceMoves(square, board, sideColor|Queen)
-				moves = append(moves, queenMoves...)
+				moves = GenerateSlidingPieceMoves(square, board, sideColor|Queen, moves)
 			case sideColor | Pawn:
-				pawnMoves := GeneratePawnMoves(square, board)
-				moves = append(moves, pawnMoves...)
+				moves = GeneratePawnMoves(square, board, moves)
 			case Empty:
 				break
 			}
@@ -84,9 +78,8 @@ func GenerateAllPseudoLegalMoves(board BoardState) []Move {
 	return moves
 }
 
-func GeneratePawnMoves(from Square, board BoardState) []Move {
+func GeneratePawnMoves(from Square, board BoardState, moves []Move) []Move {
 	var offsets []Square
-	var moves []Move
 	var promotionRank int
 	var startingRank int
 
@@ -183,7 +176,7 @@ func GeneratePawnMoves(from Square, board BoardState) []Move {
 	return moves
 }
 
-func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Move {
+func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece, moves []Move) []Move {
 	var offsets []Square
 
 	switch piece.Type() {
@@ -192,10 +185,8 @@ func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	case Rook:
 		offsets = RookOffsets[:]
 	case Queen:
-		offsets = slices.Concat(BishopOffsets[:], RookOffsets[:])
+		offsets = QueenOffsets[:]
 	}
-
-	moves := []Move{}
 
 	pieceColor := board.squares[from].Color()
 	for i := range offsets {
@@ -227,9 +218,7 @@ func GenerateSlidingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	return moves
 }
 
-func GenerateCastlingMoves(board BoardState) []Move {
-	moves := []Move{}
-
+func GenerateCastlingMoves(board BoardState, moves []Move) []Move {
 	switch board.sideToMove {
 	case WhiteToMove:
 		e1 := FileRankToSquareIndex(SquareNotationToFileRank("e1"))
@@ -286,7 +275,7 @@ func GenerateCastlingMoves(board BoardState) []Move {
 	return moves
 }
 
-func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Move {
+func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece, moves []Move) []Move {
 	var offsets []Square
 
 	switch piece.Type() {
@@ -295,8 +284,6 @@ func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	case Knight:
 		offsets = KnightOffsets[:]
 	}
-
-	moves := []Move{}
 
 	pieceColor := board.squares[from].Color()
 
@@ -325,5 +312,4 @@ func GenerateJumpingPieceMoves(from Square, board BoardState, piece Piece) []Mov
 	}
 
 	return moves
-
 }

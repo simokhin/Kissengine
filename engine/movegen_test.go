@@ -266,7 +266,7 @@ func TestGenerateKingMoves(t *testing.T) {
 			board := ParseFEN(tt.inputFEN)
 			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
 
-			moves := GenerateJumpingPieceMoves(from, board, King)
+			moves := GenerateJumpingPieceMoves(from, board, King, nil)
 			if len(moves) != tt.expectedMovesLen {
 				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
 			}
@@ -346,7 +346,7 @@ func TestGenerateKnightMoves(t *testing.T) {
 			board := ParseFEN(tt.inputFEN)
 			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
 
-			moves := GenerateJumpingPieceMoves(from, board, Knight)
+			moves := GenerateJumpingPieceMoves(from, board, Knight, nil)
 			if len(moves) != tt.expectedMovesLen {
 				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
 			}
@@ -453,7 +453,7 @@ func TestGenerateCastlingMoves(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			board := ParseFEN(tt.inputFEN)
 
-			moves := GenerateCastlingMoves(board)
+			moves := GenerateCastlingMoves(board, nil)
 			if len(moves) != tt.expectedMovesLen {
 				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
 			}
@@ -556,7 +556,7 @@ func TestGenerateSlidingPieceMoves(t *testing.T) {
 			board := ParseFEN(tt.inputFEN)
 			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
 
-			moves := GenerateSlidingPieceMoves(from, board, tt.inputPiece)
+			moves := GenerateSlidingPieceMoves(from, board, tt.inputPiece, nil)
 			if len(moves) != tt.expectedMovesLen {
 				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
 			}
@@ -670,7 +670,7 @@ func TestGeneratePawnMoves(t *testing.T) {
 			board := ParseFEN(tt.inputFEN)
 			from := FileRankToSquareIndex(SquareNotationToFileRank(tt.inputFrom))
 
-			moves := GeneratePawnMoves(from, board)
+			moves := GeneratePawnMoves(from, board, nil)
 			if len(moves) != tt.expectedMovesLen {
 				t.Errorf("want %d moves, got %d moves", tt.expectedMovesLen, len(moves))
 			}

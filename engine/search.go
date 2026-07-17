@@ -36,10 +36,25 @@ func moveScore(board BoardState, move Move, ttMove Move, killer1, killer2 Move) 
 	return int(pieceValues[move.CapturedPiece().Type()])*10 - int(pieceValues[attacker.Type()])
 }
 
+type scoredMove struct {
+	move  Move
+	score int
+}
+
 func orderMoves(board BoardState, moves []Move, ttMove Move, killer1, killer2 Move) []Move {
-	sort.Slice(moves, func(i, j int) bool {
-		return moveScore(board, moves[i], ttMove, killer1, killer2) > moveScore(board, moves[j], ttMove, killer1, killer2)
+	scored := make([]scoredMove, len(moves))
+	for i, move := range moves {
+		scored[i] = scoredMove{move: move, score: moveScore(board, move, ttMove, killer1, killer2)}
+	}
+
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].score > scored[j].score
 	})
+
+	for i, s := range scored {
+		moves[i] = s.move
+	}
+
 	return moves
 }
 

@@ -50,6 +50,14 @@ func MakeMove(board BoardState, move Move) BoardState {
 	piece := board.squares[move.From()]
 	sideColor := piece.Color()
 
+	if piece.Type() == King {
+		if sideColor == White {
+			newBoard.whiteKingSquare = move.To()
+		} else {
+			newBoard.blackKingSquare = move.To()
+		}
+	}
+
 	if board.sideToMove == WhiteToMove {
 		newBoard.sideToMove = BlackToMove
 	} else {
