@@ -9,7 +9,11 @@ var pieceValues = [7]Evaluation{
 	King:   0,
 }
 
-const bishopPairBonus Evaluation = 30
+const (
+	bishopPairBonus     Evaluation = 30
+	doubledPawnPenalty  Evaluation = 15
+	isolatedPawnPenalty Evaluation = 15
+)
 
 type Evaluation int
 
@@ -17,11 +21,22 @@ func Evaluate(board BoardState) Evaluation {
 	var evaluation Evaluation
 	phase := gamePhase(board)
 	var whiteBishops, blackBishops int
+	var whitePawnsByFile [8]int
+	var blackPawnsByFile [8]int
 
 	for i := range board.squares {
+		file, _ := SquareIndexToFileRank(Square(i))
 		piece := board.squares[i]
 		if piece == Empty {
 			continue
+		}
+
+		if piece.Type() == Pawn {
+			if piece.Color() == White {
+				whitePawnsByFile[file] += 1
+			} else {
+				blackPawnsByFile[file] += 1
+			}
 		}
 
 		if piece.Type() == Bishop {
@@ -45,6 +60,44 @@ func Evaluate(board BoardState) Evaluation {
 			evaluation += pieceValues[piece.Type()] + positional
 		} else {
 			evaluation -= pieceValues[piece.Type()] + positional
+		}
+	}
+
+	for i := range board.squares {
+		piece := board.squares[i]
+		if piece.Type() != Pawn {
+			continue
+		}
+
+		file, _ := SquareIndexToFileRank(Square(i))
+
+		var pawnsByFile [8]int
+		if piece.Color() == White {
+			pawnsByFile = whitePawnsByFile
+		} else {
+			pawnsByFile = blackPawnsByFile
+		}
+
+		var penalty Evaluation
+		if pawnsByFile[file] > 1 {
+			penalty += doubledPawnPenalty
+		}
+
+		isolated := true
+		if file > 0 && pawnsByFile[file-1] > 0 {
+			isolated = false
+		}
+		if file < 7 && pawnsByFile[file+1] > 0 {
+			isolated = false
+		}
+		if isolated {
+			penalty += isolatedPawnPenalty
+		}
+
+		if piece.Color() == board.SideToMove().Color() {
+			evaluation -= penalty
+		} else {
+			evaluation += penalty
 		}
 	}
 
