@@ -13,19 +13,27 @@ type Evaluation int
 
 func Evaluate(board BoardState) Evaluation {
 	var evaluation Evaluation
+	phase := gamePhase(board)
 
 	for i := range board.squares {
 		piece := board.squares[i]
-		if piece == Empty || piece.Type() == King {
+		if piece == Empty {
 			continue
 		}
 
-		if piece.Color() == board.SideToMove().Color() {
-			evaluation += pieceValues[piece.Type()]
-			evaluation += pstValue(pstTables[piece.Type()], Square(i), piece.Color())
+		var positional Evaluation
+		if piece.Type() == King {
+			mg := pstValue(KingMiddlegamePST, Square(i), piece.Color())
+			eg := pstValue(KingEndGamePST, Square(i), piece.Color())
+			positional = Evaluation(phase*float64(mg) + (1-phase)*float64(eg))
 		} else {
-			evaluation -= pieceValues[piece.Type()]
-			evaluation -= pstValue(pstTables[piece.Type()], Square(i), piece.Color())
+			positional = pstValue(pstTables[piece.Type()], Square(i), piece.Color())
+		}
+
+		if piece.Color() == board.SideToMove().Color() {
+			evaluation += pieceValues[piece.Type()] + positional
+		} else {
+			evaluation -= pieceValues[piece.Type()] + positional
 		}
 	}
 

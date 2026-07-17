@@ -63,6 +63,44 @@ var QueenPST = [64]Evaluation{
 	-20, -10, -10, -5, -5, -10, -10, -20,
 }
 
+var KingMiddlegamePST = [64]Evaluation{
+	20, 30, 10, 0, 0, 10, 30, 20,
+	20, 20, 0, 0, 0, 0, 20, 20,
+	-10, -20, -20, -20, -20, -20, -20, -10,
+	-20, -30, -30, -40, -40, -30, -30, -20,
+	-30, -40, -40, -50, -50, -40, -40, -30,
+	-30, -40, -40, -50, -50, -40, -40, -30,
+	-30, -40, -40, -50, -50, -40, -40, -30,
+	-30, -40, -40, -50, -50, -40, -40, -30,
+}
+
+var KingEndGamePST = [64]Evaluation{
+	-50, -30, -30, -30, -30, -30, -30, -50,
+	-30, -30, 0, 0, 0, 0, -30, -30,
+	-30, -10, 20, 30, 30, 20, -10, -30,
+	-30, -10, 30, 40, 40, 30, -10, -30,
+	-30, -10, 30, 40, 40, 30, -10, -30,
+	-30, -10, 20, 30, 30, 20, -10, -30,
+	-30, -20, -10, 0, 0, -10, -20, -30,
+	-50, -40, -30, -20, -20, -30, -40, -50,
+}
+
+func gamePhase(board BoardState) float64 {
+	const maxPhase = 24
+	phase := 0
+	for i := range board.squares {
+		switch board.squares[i].Type() {
+		case Knight, Bishop:
+			phase++
+		case Rook:
+			phase += 2
+		case Queen:
+			phase += 4
+		}
+	}
+	return float64(phase) / float64(maxPhase) // 1.0 - opening, middlegame, 0.0 - endgame
+}
+
 func pstValue(table [64]Evaluation, square Square, color Piece) Evaluation {
 	file, rank := SquareIndexToFileRank(square)
 	if color == Black {
