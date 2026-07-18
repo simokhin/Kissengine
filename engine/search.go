@@ -28,24 +28,38 @@ const (
 	Infinity      Evaluation = 1_000_000
 	Mate                     = 100_000
 	MateThreshold            = Mate - 1000
-	killerBonus              = 50
+
+	// Move ordering score bands, TT move highest down to losing captures lowest. Each band
+	// is separated from its neighbors by a wide enough margin that a tiebreaker added within
+	// a band (SEE value, capped by the value of a queen) can never spill into the next one.
+	ttMoveScore     = 2_000_000
+	goodCaptureBase = 1_000_000
+	killerScore     = 500_000
+	badCaptureBase  = -1_000_000
 )
 
 var killerMoves [128][2]Move
 var historyHeuristic [128][128]int
 
+// moveScore ranks a move for ordering purposes: TT move first, then captures split by SEE
+// into winning (searched right after the TT move) and losing (searched dead last, below
+// even history-heuristic quiets), with killer moves and history heuristic filling the
+// space in between for quiet moves.
 func moveScore(board BoardState, move Move, ttMove Move, killer1, killer2 Move) int {
 	if move == ttMove {
-		return 1_000_000
+		return ttMoveScore
 	}
-	if move.CapturedPiece() == Empty {
-		if move == killer1 || move == killer2 {
-			return killerBonus
+	if move.CapturedPiece() != Empty {
+		see := int(SEE(board, move))
+		if see >= 0 {
+			return goodCaptureBase + see
 		}
-		return historyHeuristic[move.From()][move.To()]
+		return badCaptureBase + see
 	}
-	attacker := board.PieceAt(move.From())
-	return int(pieceValues[move.CapturedPiece().Type()])*10 - int(pieceValues[attacker.Type()])
+	if move == killer1 || move == killer2 {
+		return killerScore
+	}
+	return historyHeuristic[move.From()][move.To()]
 }
 
 type scoredMove struct {
