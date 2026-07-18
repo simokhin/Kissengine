@@ -395,7 +395,8 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 		var score Evaluation
 		var ok bool
 
-		isLateQuiet := i >= 4 && move.CapturedPiece() == Empty && move.Promotion() == Empty && depth >= 3 && !newBoard.InCheck()
+		givesCheck := newBoard.InCheck()
+		isLateQuiet := i >= 4 && move.CapturedPiece() == Empty && move.Promotion() == Empty && depth >= 3 && !givesCheck
 
 		if isLateQuiet {
 			// Reduced, narrow-window probe first — just checking "is this move even worth alpha?"
@@ -414,7 +415,15 @@ func negaMax(board BoardState, depth int, ply int, alpha, beta Evaluation, deadl
 				score = -score
 			}
 		} else {
-			score, ok = negaMax(newBoard, depth-1, ply+1, -beta, -alpha, deadline, nodes, childHistory, true, stop)
+			// Check extension: a move that gives check is forcing, so search it a full ply
+			// deeper instead of letting it burn through the remaining depth budget like any
+			// other move — otherwise a forced sequence of checks can run straight into the
+			// horizon and hide whatever it was actually leading to.
+			extension := 0
+			if givesCheck {
+				extension = 1
+			}
+			score, ok = negaMax(newBoard, depth-1+extension, ply+1, -beta, -alpha, deadline, nodes, childHistory, true, stop)
 			if !ok {
 				return 0, false
 			}
